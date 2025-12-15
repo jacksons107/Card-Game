@@ -1,0 +1,4 @@
+(executable
+ (public_name card_game)
+ (name main)
+ (libraries card_game))

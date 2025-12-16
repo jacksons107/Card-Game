@@ -1,90 +1,63 @@
-type enemy = {hp : int}
+module IntMap = Map.Make(Int)
 
-type action =
-    Attack of (enemy -> enemy)
+type enemy = {hp : int; block : int; acts : action list}
 
-type card = {
-    id : int;
-    act : action;
-    desc : string
-}
+and player = {hp : int; block : int; mana : int; hand : hand; deck : deck}
 
-type hand = card list
+and actor = Player of player | Enemy of enemy
 
-type deck = card list
+and action = 
+    | Attack of int
+    | Block of int
+    | Map of int (* increase the power number of every card in hand or deck *)
 
-type player = {hp : int; hand : hand; deck : deck}
+and card = {id : int; cost : int; act : action; target : card_target_type; desc : string}
 
-(* Helper function that takes card at 'idx' out of 'hand' and returns the card
-   and the new hand without the card in it. *)
-let takeFromHand hand idx = 
-    let rec _takeFromHand (hand : hand) idx res = match hand with
-        | [] -> failwith "Trying to take card at nonexistent index."
-        | x::xs -> if idx = 0 then (x, (res@xs : hand)) else _takeFromHand xs (idx - 1) (res@[x])
-    in
-    _takeFromHand hand idx []
+(* Types of entities that can be targeted by cards. *)
+and card_target_type = SingleEnemy | AllEnemies | SingleCard | PlayerHand | PlayerDeck
 
-(* Play the card at 'idx' targeting enemy 'target', and return new version of 
-   player 'p' without card in hand and new version of enemy after effect of 
-   playing the card. *)
-let play p idx target = match takeFromHand p.hand idx with 
-    (c, new_hand) -> 
-        let new_player = {hp = p.hp; hand = new_hand; deck = p.deck} in
-        match c with
-            {act = a; _} ->
-                match a with
-                    Attack (att) -> (new_player, att target)
+and hand = card list
 
-(* Take the top card from the deck and return it with the rest of the deck. *)
-let takeTopDeck (d : deck) = 
-    match d with
-        | [] -> (None, d)
-        | x::xs -> (Some x, (xs : deck))
+and deck = card list
 
-(* Draw the top card from player 'p' deck and put it at the end of the player's hand. *)
-let draw p = 
-    let c, new_deck = 
-        match p with {deck = d; _} -> takeTopDeck d
-    in
-        match c with
-            | Some crd -> {hp = p.hp; hand = p.hand@[crd]; deck = new_deck}
-            | None -> {hp = p.hp; hand = p.hand; deck = new_deck}
+(* Entities that can be the target of actions. *)
+type target = 
+    | Player of player
+    | Enemy of enemy
+    | Enemies of enemy IntMap.t
+    | Card of card
+    | Hand of hand
+    | Deck of deck
 
-(* General template for an attack card. *)
-let attack d (e : enemy) = match e with {hp = h} -> {hp = h - d}
+type game = {player : player; enemies : enemy IntMap.t}
 
-(* Attack card that deals 5 damage. *)
-let attack5 = Attack (attack 5)
 
-(* Attack card that deals 2 damage. *)
-let attack2 = Attack (attack 2)
+let attack2 = {id = 0; cost = 1; act = Attack 2; target = SingleEnemy; desc = "Attack for 2 damage."}
+let block2 = {id = 1; cost = 1; act = Block 2; target = SingleEnemy; desc = "Add 2 block."}
 
-(* Two instances of attack5 cards. *)
-let c1 = {id = 1; act = attack5; desc = "Attack 5"}
-let c2 = {id = 2; act = attack5; desc = "Attack 5"}
+let increasePower power card = 
+    match card.act with
+        | Attack d -> {card with act = Attack (d + power)}
+        | Block b -> {card with act = Block (b + power)}
+        | Map p -> {card with act = Map (p + power)}
 
-(* Instance of a deck with three attack2 cards. *)
-let d = [{id=3; act = attack2; desc = "Attack 2"}; 
-         {id=4; act = attack2; desc = "Attack 2"}; 
-         {id=5; act = attack2; desc = "Attack 2"}]
+let instantiateAction (action : action) (actor : actor) : (target -> target) = 
+    match action with
+        | Attack d -> 
+            fun entity -> 
+                let h = entity.hp - d in {entity with hp = h}
+        | Block b ->
+            fun entity -> 
+                let blk = entity.block + b in {entity with block = blk}
+        | Map p ->
+            fun cards ->
+                List.map (increasePower p) cards
 
-(* An enemey. *)
-let opp = {hp = 10}
+let print_enemy id (e : enemy) =
+    Printf.printf "Enemy ID: %d HP: %d\n" id e.hp
 
-(* A player. *)
-let hero = {hp = 10; hand = [c1; c2]; deck = d}
-
-let print_enemy (e : enemy) =
-  Printf.printf "Enemy HP: %d\n" e.hp
-
-let print_player (p : player) =
-    Printf.printf "Player HP: %d\n" p.hp;
-    Printf.printf "Hand:\n";
-    List.iteri
-        (fun i c -> Printf.printf "  [%d] ID %d %s\n" i c.id c.desc)
-        p.hand;
-    Printf.printf "Deck: %d\n" (List.length p.deck)
-
+let print_enemies (game : game) = 
+    IntMap.iter (fun x -> print_enemy x) game.enemies
 
 let read_int () =
   try int_of_string (read_line ())
@@ -92,34 +65,70 @@ let read_int () =
     print_endline "Invalid number.";
     read_int ()
 
-let rec choose_card (p : player) =
-  print_string "Choose a card index: ";
-  let idx = read_int () in
-  if idx < 0 || idx >= List.length p.hand then (
-    print_endline "Invalid card index.";
-    choose_card p
-  ) else
-    idx
+let selectEnemy enemies = 
+    print_string "Select an enemy to target: ";
+    IntMap.iter (fun x -> print_enemy x) enemies;
+    let selected_id = read_int () in IntMap.find selected_id enemies
 
-let player_turn (p : player) (e : enemy) =
-  print_endline "\n=== Player Turn ===";
-  print_player p;
-  print_enemy e;
+let print_hand (hand : hand) = 
+    List.iteri
+        (fun i c -> Printf.printf "  [%d] ID %d %s\n" i c.id c.desc)
+        hand
 
-  let idx = choose_card p in
-  let new_p, new_e = play p idx e in
-  (new_p, new_e)
+let rec selectCard hand = 
+    print_string "Select an card to use: ";
+    print_hand hand;
+    let selected_idx = read_int () in 
+        if selected_idx < 0 || selected_idx >= List.length hand then (
+            print_endline "Invalid card index.";
+            selectCard hand
+        ) else
+            List.nth hand selected_idx
 
-let rec game_loop (p : player) (e : enemy) =
+let findCardTargets card game = 
+    match card.target with
+        | SingleEnemy -> Enemy (selectEnemy game.enemies)
+        | AllEnemies -> Enemies game.enemies
+        | SingleCard -> Card (selectCard game.player.hand)
+        | PlayerHand -> Hand game.player.hand
+        | PlayerDeck -> Deck game.player.deck
+
+
+(* 
+(* Choose the action the enemy will take. *)
+let chooseEnemyAction enemy = *)
+
+let print_player (p : player) =
+    Printf.printf "Player HP: %d\n" p.hp;
+    Printf.printf "Hand:\n";
+    print_hand p.hand;
+    Printf.printf "Deck: %d\n" (List.length p.deck)
+
+let player_turn (game : game) =
+    print_endline "\n=== Player Turn ===";
+    print_player game.player;
+    print_enemies game;
+
+    (* Player selects card from hand. *)
+    let selected_card = selectCard game.player.hand in
+    (* Player selects a target for the card. *)
+    let target = findCardTargets selected_card game in
+    (* Instantiate the action from the selected card. *)
+    let action = instantiateAction selected_card.act in
+    (* Apply the action to the target. *)
+    let new_target = action target in 
+    (* Update the game with the result of appying the action to the target. *)
+    let new_game = update_game game new_target
+
+let rec game_loop (game : game) =
   if e.hp <= 0 then
     print_endline "\nYou win!"
   else if p.hp <= 0 then
     print_endline "\nYou lose!"
   else
-    let drawn_p = draw p in
-    let new_p, new_e = player_turn drawn_p e in
-    game_loop new_p new_e
+    let new_game = player_turn game in
+    game_loop new_game
 
 let () =
   print_endline "Welcome to Caml: The Ultimate!";
-  game_loop hero opp
+  game_loop initial_game

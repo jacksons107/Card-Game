@@ -16,10 +16,11 @@ and action_type =
     | Attack of int * int
     | Block of int
     | PowInc of int
+    | Map of action_type * int
 
-and action = target -> game -> game
+and action = game -> target -> game
 
-and target = Player | Enemy of int | Card of int
+and target = Player | Enemy of int | Card of card | Hand | Deck
 
 (* General helpers to update an enemy stats. *)
 let update_enemy_hp new_hp enemy_opt = 
@@ -34,7 +35,7 @@ let update_enemy_block new_block enemy_opt =
 
 
 (* --- Attack action builders --- *)
-let attack damage target game = 
+let attack damage game target = 
     match target with
         | Player -> 
             let new_hp = game.player.hp - damage in
@@ -45,18 +46,19 @@ let attack damage target game =
             let new_hp = e.hp - damage in
             let new_enemies = IntMap.update id (update_enemy_hp new_hp) game.enemies in
             {game with enemies = new_enemies}
-        | Card _ ->
-            failwith "Cannot attack a card."
+        | _ ->
+            failwith "Can only attack enemies."
 
+(* TODO replace now that there is apply_x_times helper *)
 let attack_multiple damage times = 
     let attack_d = attack damage in 
-    let rec attack_times t target game = 
-        if t = 0 then game else attack_times (t-1) target (attack_d target game)
+    let rec attack_times t game target = 
+        if t = 0 then game else attack_times (t-1) (attack_d game target) target
     in
     ((attack_times times) : action)
 
 (* --- Block action builders --- *)
-let block block target game = 
+let block block game target = 
     match target with
         | Player -> 
             let new_block = game.player.block + block in
@@ -67,37 +69,57 @@ let block block target game =
             let new_block = e.block - block in
             let new_enemies = IntMap.update id (update_enemy_block new_block) game.enemies in
             {game with enemies = new_enemies}
-        | Card _ ->
-            failwith "Cannot add block to a card."
+        | _ ->
+            failwith "Cannot add block to cards."
 
-(* --- Map action builders --- *)
-let incr_card_power power card = 
+(* --- Card modifying action builders --- *)
+let rec incr_card_power power card = 
     match card.action_type with
         | Attack (d, t) -> {card with action_type = Attack (d+power, t)}
         | Block b -> {card with action_type = Block (b+power)}
         | PowInc p -> {card with action_type = PowInc (p+power)}
+        | Map (a, t) -> {card with action_type = Map (a, t+power)}
 
-let replace_card idx (new_card : card) (hand : hand) = 
-    List.mapi (fun i current_element ->
-        if i = idx then new_card else current_element
+let replace_card (new_card : card) (hand : hand) : hand = 
+    List.map (fun current_element ->
+        if current_element.id = new_card.id then new_card else current_element
     ) hand
 
-let incr_power power target game = 
+let incr_power power game target = 
     match target with
-        | Card idx ->
-            let card = List.nth game.player.hand idx in
-            let new_card = incr_card_power power card in
-            let new_hand = replace_card idx new_card game.player.hand in
+        | Card c ->
+            let new_card = incr_card_power power c in
+            let new_hand = replace_card new_card game.player.hand in
             let new_player = {game.player with hand = new_hand} in
             {game with player = new_player}
         | _ -> failwith "Can only increase power of a card."
 
+(* General helper to apply an action x times. *)
+let rec apply_x_times (action : action) x game target = 
+    if x = 0 then game else apply_x_times action (x-1) (action game target) target
+
+(* Map a card modifying action to hand or deck 'times' amount of times. *)
+let map_modifier (mod_action : action) times game (cards : target) = 
+    let rec _map_modifier mod_action game cards =
+        match cards with
+            | [] -> game
+            | x::xs -> _map_modifier (apply_x_times mod_action times) (mod_action game (Card x)) xs
+    in
+    match cards with
+        | Hand -> 
+            _map_modifier mod_action game game.player.hand
+        | Deck ->
+            _map_modifier mod_action game game.player.deck
+        | _ -> failwith "Can only map a modifier onto hand or deck."
+
+
 (* Instantiate an action from an action_type. *)
-let instantiate_action action_type = 
+let rec instantiate_action action_type = 
     match action_type with
         | Attack (d, t) -> attack_multiple d t
         | Block b -> block b
         | PowInc p -> incr_power p
+        | Map (a, t) -> map_modifier (instantiate_action a) t
 
 
 (* ======= Example actions =========*)
@@ -110,3 +132,5 @@ let attack_2_4 = instantiate_action (Attack (2, 4))
 let block_3 = instantiate_action (Block 3)
 (* Increase the power stat of a card by 1. *)
 let power_inc_1 = instantiate_action (PowInc 1)
+(* Map the power_inc_1 function over hand or deck 1 time. *)
+let power_inc_hand_1 = instantiate_action (Map ((PowInc 1), 1))

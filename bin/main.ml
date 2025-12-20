@@ -3,7 +3,7 @@ module IntMap = Map.Make(Int)
 
 type game = {player : player; enemies : enemy IntMap.t}
 
-and enemy = {hp : int; block : int; actions : action_type list}
+and enemy = {hp : int; block : int; actions : action_type array; block_vals : int array}
 
 and player = {hp : int; mana : int; mana_cap : int; block : int; hand : hand; deck : deck}
 
@@ -11,7 +11,7 @@ and deck = card list
 
 and hand = card list
 
-and card = {id : int; cost : int; action_type : action_type; desc : string}
+and card = {id : int; cost : int; action_type : action_type}
 
 and action_type = 
     | Attack of int * int
@@ -150,10 +150,10 @@ let rec instantiate_action action_type =
 (* let power_inc_hand_1 = instantiate_action (Modifier (Map ((PowInc 1), 1))) *)
 
 (* ======= Example cards ========= *)
-let attack_2_card = {id = 0; cost = 1; action_type = Attack (2, 1); desc = "Attack 2"}
-let block_3_card = {id = 1; cost = 2; action_type = Block 3; desc = "Block 3"}
+let attack_2_card = {id = 0; cost = 1; action_type = Attack (2, 1)}
+let block_3_card = {id = 1; cost = 2; action_type = Block 3}
 (* let power_inc_1_card = {id = 2; cost = 1; action_type = (Modifier (PowInc 1)); desc = "Pow Inc 1"} *)
-let power_inc_hand_1 = {id = 3; cost = 3; action_type = (Modifier (Map ((PowInc 1), 1))); desc = "Map Pow Inc 1"}
+let power_inc_hand_1 = {id = 3; cost = 3; action_type = (Modifier (Map ((PowInc 1), 1)))}
 (* TODO tempate map card? *)
 
 (* ======= Example player ========= *)
@@ -167,18 +167,25 @@ let player_simple = {hp = 10;
 (* ======= Example enemy ========= *)
 let enemy_simple = {hp = 10;  
                     block = 0; 
-                    actions = [Attack (2, 1); Block 1]}
+                    actions = [|Attack (2, 1)|];
+                    block_vals = [|0; 1|]}
 
 (* ======= Example game starting state ========= *)
 let enemies_simple = IntMap.add 0 enemy_simple IntMap.empty
 let game_simple = {player = player_simple; enemies = enemies_simple}
 
 (* ============================================= *)
+
+let pick_rand_element arr = 
+    let length = Array.length arr in
+    let idx = Random.int(length) in
+    arr.(idx)
+
 let enemy_pick_action (enemy : enemy) = 
-    let actions_array = Array.of_list enemy.actions in
-    let length = Array.length actions_array in
-    let idx = Random.int(length) in 
-    actions_array.(idx)
+    pick_rand_element enemy.actions
+
+let enemy_pick_block (enemy : enemy) = 
+    pick_rand_element enemy.block_vals
 
 let rec string_of_action_type a_type = 
     match a_type with
@@ -206,8 +213,7 @@ let set_block (game : game) new_block target =
             let new_enemies = IntMap.update id (update_enemy_block new_block) game.enemies in
             {game with enemies = new_enemies}
         | _ -> 
-            failwith "Can only set block of player or enemy."
-
+            failwith "Can only set block of player or enemy." 
 
 type card_selection = Card of card | EndTurn
 let rec prompt_choose_card (g : game) = 
@@ -264,13 +270,17 @@ let rec prompt_choose_target (c : card) (g : game) =
                     else
                         UnselectCard
 
+let string_of_card (c : card) = 
+    let action_string = string_of_action_type c.action_type in
+    Printf.sprintf "ID %d %s\n" c.id action_string
+
 let print_player (p : player) = 
     Printf.printf "Player HP: %d\n" p.hp;
     Printf.printf "Mana: %d\n" p.mana;
     Printf.printf "Block: %d\n" p.block;
     Printf.printf "Hand:\n";
     List.iteri
-        (fun i c -> Printf.printf "  [%d] ID %d %s\n" i c.id c.desc)
+        (fun i c -> Printf.printf "  [%d] %s" i (string_of_card c))
         p.hand;
     Printf.printf "Deck: %d\n" (List.length p.deck)
 
@@ -281,11 +291,13 @@ let print_enemies enemies =
     IntMap.iter (fun k v -> Printf.printf "Enemy %d " k; print_enemy v) enemies
 
 (* TODO modify to also take enemy actions as input *)
-let print_game_state (g : game) = 
+let print_game_state (g : game) enemy_actions = 
     print_endline "=== Player ===";
     print_player g.player;
     print_endline "=== Enemies ===";
-    print_enemies g.enemies
+    print_enemies g.enemies;
+    print_endline "=== Enemy Actions ===";
+    print_enemy_actions enemy_actions
 
 let rec apply_enemy_actions (g : game) actions = 
     match actions with
@@ -313,19 +325,18 @@ let apply_card (c : card) (t : target) (g : game) =
     let action = instantiate_action c.action_type in
     action {g with player = new_player} t
 
-(* TODO should allow playing multiple cards in one turn *)
-let rec play_cards (game : game) = 
-    print_game_state game;
+let rec play_cards (game : game) enemy_actions = 
+    print_game_state game enemy_actions;
     let chosen_card = prompt_choose_card game in
     match chosen_card with
         | EndTurn -> game
         | Card c ->
             let target = prompt_choose_target c game in
             match target with
-                | UnselectCard -> play_cards game
+                | UnselectCard -> play_cards game enemy_actions
                 | Target t -> 
                     let applied = apply_card c t game in
-                    play_cards applied
+                    play_cards applied enemy_actions
 
 let take_top_deck (d : deck) = 
     match d with
@@ -348,33 +359,30 @@ let rec draw_cards (game : game) num_cards =
 (* ==== Game Loop ==== *)
 let rec game_loop (game : game) = 
     if game.enemies = IntMap.empty then 
-       print_string  "Player wins"
+       print_endline  "Player wins"
     else if game.player.hp <= 0 then 
-        print_string "Player loses"
+        print_endline "Player loses"
     else
         (* Player mana restored *)
         let mana_restored = set_mana game game.player.mana_cap in
         (* Player block reset *)
         let player_block_reset = set_block mana_restored 0 Player in
         (* TODO change this to be setting enemy block *)
-        (* Enemies block reset *)
-        let enemies_block_reset = 
-            let new_enemies = IntMap.map (fun e -> {e with block = 0}) player_block_reset.enemies in
+        (* Enemies set block *)
+        let enemies_block_set = 
+            let new_enemies = IntMap.map (fun e -> {e with block = enemy_pick_block e}) player_block_reset.enemies in
             {player_block_reset with enemies = new_enemies}
         in
-        let cards_drawn = draw_cards enemies_block_reset 1 in
-        (* print_game_state cards_drawn; *)
+        (* Player draws cards *)
+        let cards_drawn = draw_cards enemies_block_set 1 in
         (* Enemies pick action *)
         let enemy_actions = 
             IntMap.fold 
             (fun _ v acc -> acc@[enemy_pick_action v]) 
             cards_drawn.enemies [] 
         in
-        (* Show player enemy actions *)
-        print_endline "=== Enemy Actions ===";
-        print_enemy_actions enemy_actions;
         (* Player plays their cards *)
-        let cards_played = play_cards cards_drawn in
+        let cards_played = play_cards cards_drawn enemy_actions in
         (* Apply enemey actions *)
         let enemies_acted = apply_enemy_actions cards_played enemy_actions in
         (* Loop *)

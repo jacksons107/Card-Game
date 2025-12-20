@@ -2,12 +2,12 @@ open Types
 
 let rec string_of_action_type a_type = 
     match a_type with
-        | Attack (d, t) -> Printf.sprintf "Attack %d damage %d times" d t
+        | Attack (d, t) -> Printf.sprintf "Attack %d damage, %d times" d t
         | Block b -> Printf.sprintf "Block %d" b
         | Modifier m ->
             match m with
             | PowInc p -> Printf.sprintf "Increase power %d" p
-            | Map (a, t) -> Printf.sprintf "Map %s %d times" (string_of_action_type (Modifier a)) t
+            | Map (a, t) -> Printf.sprintf "Map [%s] %d times" (string_of_action_type (Modifier a)) t
 
 (* print a list of enemy actions, assumes enemy actions are in order of enemy id *)
 let print_enemy_actions enemy_actions = 

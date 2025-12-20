@@ -3,6 +3,8 @@ open Cli
 open Rules
 open Render
 
+(* TODO remove enemies from game.enemies if their hp <= 0 *)
+(* TODO do not apply an enemy's action if it is killed before acting *)
 let rec game_loop (game : game) = 
     if game.enemies = IntMap.empty then 
        print_endline  "Player wins"

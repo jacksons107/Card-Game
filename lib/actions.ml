@@ -82,22 +82,24 @@ let incr_power power game target =
             {game with player = new_player}
         | _ -> failwith "Can only increase power of a card."
 
-(* TODO mapping multiple times not correct *)
 (* Map a card modifying action to hand or deck 'times' amount of times. *)
-let map_modifier (mod_action : action) times game (cards : target) = 
-    let rec _map_modifier mod_action game cards =
-        match cards with
-            | [] -> game
-            (* | x::xs -> _map_modifier (apply_x_times mod_action times) (mod_action game (Card x)) xs *)
-            | x::xs -> _map_modifier mod_action (mod_action game (Card x)) xs
-    in
-    let mult_act = (apply_x_times mod_action times) in
+let rec map_modifier (mod_action : action) times game (cards : target) = 
+    if times = 0 then game else
+    let rec _map_modifier (mod_action : action) game cards =
     match cards with
-        | Hand -> 
-            _map_modifier mult_act game game.player.hand
+        | [] -> game
+        (* | x::xs -> _map_modifier (apply_x_times mod_action times) (mod_action game (Card x)) xs *)
+        | x::xs -> _map_modifier mod_action (mod_action game (Card x)) xs
+    in
+    let new_game = match cards with
+        | Hand ->
+            _map_modifier mod_action game game.player.hand
         | Deck ->
-            _map_modifier mult_act game game.player.deck
-        | _ -> failwith "Can only map a modifier onto hand or deck."
+            _map_modifier mod_action game game.player.deck
+        | _ -> 
+            failwith "Can only map a modifier onto hand or deck."
+    in
+    map_modifier mod_action (times - 1) new_game cards
 
 (* Instantiate an action from an action_type. *)
 let rec instantiate_action action_type = 

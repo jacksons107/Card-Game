@@ -1,0 +1,83 @@
+open Types
+open Actions
+
+(* helper that pics a random element from an array, used for picking enemy actions and blocks *)
+let pick_rand_element arr = 
+    let length = Array.length arr in
+    let idx = Random.int(length) in
+    arr.(idx)
+
+(* enemy randomly picks one of their actions *)
+let enemy_pick_action (enemy : enemy) = 
+    pick_rand_element enemy.actions
+
+(* enemy randomly picks one of their blocks *)
+let enemy_pick_block (enemy : enemy) = 
+    pick_rand_element enemy.block_vals
+
+(* helper to set the player's mana *)
+let set_mana (game : game) new_mana =
+    let new_player = {game.player with mana = new_mana} in
+    {game with player = new_player}
+
+(* helper to set the block of a player or enemy *)
+let set_block (game : game) new_block target = 
+    match target with
+        | Player ->
+            let new_player = {game.player with block = new_block} in
+            {game with player = new_player}
+        | Enemy id ->
+            let new_enemies = IntMap.update id (update_enemy_block new_block) game.enemies in
+            {game with enemies = new_enemies}
+        | _ -> 
+            failwith "Can only set block of player or enemy." 
+
+(* applies all the enemies' chosen actions to the player *)
+let rec apply_enemy_actions (g : game) actions = 
+    match actions with
+        | [] -> g
+        | x::xs -> 
+            let action = instantiate_action x in
+            apply_enemy_actions (action g Player) xs
+
+(* TODO should this be involved in discarding? *)
+(* removes a specific card from the player's hand, return the new hand *)
+let remove_from_hand (c : card) (h : hand) = 
+    let rec _remove c h (acc : hand) = 
+        match h with
+            | [] -> acc
+            | x::xs -> 
+                if x.id = c.id then
+                    acc@xs
+                else
+                    _remove c xs acc@[x]
+    in
+    _remove c h []
+
+(* applies a card (the card's action) to the specified target *)
+let apply_card (c : card) (t : target) (g : game) = 
+    let new_mana = g.player.mana - c.cost in
+    let new_hand = remove_from_hand c g.player.hand in
+    let new_player = {g.player with mana = new_mana; hand = new_hand} in
+    let action = instantiate_action c.action_type in
+    action {g with player = new_player} t
+
+(* gets the top card of the deck (if it exists), and returns that card and the new deck *)
+let take_top_deck (d : deck) = 
+    match d with
+        | [] -> (None, d)
+        | x::xs -> (Some x, xs)
+
+(* draws the specified number of cards from the deck, returns a new game state *)
+let rec draw_cards (game : game) num_cards = 
+    if num_cards = 0 then game else
+    let top_card = take_top_deck game.player.deck in
+    match top_card with
+        | (None, _) -> game
+        | (Some c, new_d) ->
+            let new_p = {game.player with 
+                            hand = c::game.player.hand;
+                            deck = new_d}
+            in
+            let new_game = {game with player = new_p} in
+            draw_cards new_game (num_cards - 1)

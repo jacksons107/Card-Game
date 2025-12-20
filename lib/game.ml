@@ -3,8 +3,8 @@ open Cli
 open Rules
 open Render
 
-(* TODO remove enemies from game.enemies if their hp <= 0 *)
-(* TODO do not apply an enemy's action if it is killed before acting *)
+(* TODO should remove dead enemies after each card play. *)
+(* TODO have function to check for a win condition *)
 let rec game_loop (game : game) = 
     if game.enemies = IntMap.empty then 
        print_endline  "Player wins"
@@ -23,14 +23,12 @@ let rec game_loop (game : game) =
         (* Player draws cards *)
         let cards_drawn = draw_cards enemies_block_set 1 in
         (* Enemies pick action *)
-        let enemy_actions = 
-            IntMap.fold 
-            (fun _ v acc -> acc@[enemy_pick_action v]) 
-            cards_drawn.enemies [] 
-        in
+        let enemy_actions_selected = select_enemy_actions cards_drawn in
         (* Player plays their cards *)
-        let cards_played = play_cards cards_drawn enemy_actions (Some print_game_state) in
-        (* Apply enemey actions *)
-        let enemies_acted = apply_enemy_actions cards_played enemy_actions in
+        let cards_played = play_cards cards_drawn enemy_actions_selected (Some print_game_state) in
+        (* Remove dead enemies *)
+        let removed_dead = remove_dead_enemies cards_played in
+        (* Apply enemy actions *)
+        let enemies_acted = apply_enemy_actions removed_dead (get_enemy_actions removed_dead) in
         (* Loop *)
         game_loop enemies_acted

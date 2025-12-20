@@ -1,5 +1,4 @@
 open Types 
-(* open Render *)
 open Rules
 
 type card_selection = Card of card | EndTurn
@@ -67,7 +66,7 @@ let rec prompt_choose_target (c : card) (g : game) =
    takes an optional render function that renders the game state each time a card is played *)
 let rec play_cards (game : game) enemy_actions render_fun = 
     (match render_fun with
-        | Some f -> f game enemy_actions
+        | Some f -> f game
         | None -> ());
     (* print_game_state game enemy_actions; *)
     let chosen_card = prompt_choose_card game in

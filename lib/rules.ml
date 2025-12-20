@@ -1,15 +1,38 @@
 open Types
 open Actions
 
+(* TODO organize this into individual files for related utilities and aggregate here *)
+
 (* helper that pics a random element from an array, used for picking enemy actions and blocks *)
 let pick_rand_element arr = 
     let length = Array.length arr in
     let idx = Random.int(length) in
     arr.(idx)
 
-(* enemy randomly picks one of their actions *)
+(* enemy randomly picks one of their actions and set it as their selected action *)
 let enemy_pick_action (enemy : enemy) = 
-    pick_rand_element enemy.actions
+    let selected_action = pick_rand_element enemy.actions in
+    {enemy with selected_action = selected_action}
+
+(* has each enemy select a new selected action *)
+let select_enemy_actions (game : game) = 
+    let new_enemies = IntMap.map enemy_pick_action game.enemies in
+    {game with enemies = new_enemies}
+
+(* collect all enemy actions into a list *)
+let get_enemy_actions (game : game) = 
+    IntMap.fold 
+        (fun _ e acc -> e.selected_action::acc)
+        game.enemies
+        []
+
+(* applies all the enemies' chosen actions to the player *)
+let rec apply_enemy_actions (g : game) actions = 
+    match actions with
+        | [] -> g
+        | x::xs -> 
+            let action = instantiate_action x in
+            apply_enemy_actions (action g Player) xs
 
 (* enemy randomly picks one of their blocks *)
 let enemy_pick_block (enemy : enemy) = 
@@ -32,15 +55,8 @@ let set_block (game : game) new_block target =
         | _ -> 
             failwith "Can only set block of player or enemy." 
 
-(* applies all the enemies' chosen actions to the player *)
-let rec apply_enemy_actions (g : game) actions = 
-    match actions with
-        | [] -> g
-        | x::xs -> 
-            let action = instantiate_action x in
-            apply_enemy_actions (action g Player) xs
-
 (* TODO should this be involved in discarding? *)
+(* TODO incorrectly reorders hand *)
 (* removes a specific card from the player's hand, return the new hand *)
 let remove_from_hand (c : card) (h : hand) = 
     let rec _remove c h (acc : hand) = 
@@ -81,3 +97,12 @@ let rec draw_cards (game : game) num_cards =
             in
             let new_game = {game with player = new_p} in
             draw_cards new_game (num_cards - 1)
+
+(* Removes all dead enemies (hp <= 0) from the game *)
+let remove_dead_enemies (game : game)=
+    let alive_enemies =
+        IntMap.filter
+            (fun _ (e : enemy) -> e.hp > 0)
+            game.enemies
+    in
+    { game with enemies = alive_enemies }

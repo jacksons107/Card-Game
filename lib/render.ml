@@ -32,13 +32,14 @@ let print_enemy (e : enemy) =
     Printf.printf "HP: %d Block: %d\n" e.hp e.block
 
 let print_enemies enemies = 
-    IntMap.iter (fun k v -> Printf.printf "Enemy %d " k; print_enemy v) enemies
+    IntMap.iter 
+        (fun k v -> 
+            Printf.printf "Enemy %d, doing %s\n" k (string_of_action_type v.selected_action); print_enemy v) 
+        enemies
 
-let print_game_state (g : game) enemy_actions = 
+let print_game_state (g : game) = 
     print_endline "=== Player ===";
     print_player g.player;
     print_endline "=== Enemies ===";
     print_enemies g.enemies;
-    print_endline "=== Enemy Actions ===";
-    print_enemy_actions enemy_actions
 

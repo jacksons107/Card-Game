@@ -2,7 +2,7 @@ module IntMap = Map.Make(Int)
 
 type game = {player : player; enemies : enemy IntMap.t}
 
-and enemy = {hp : int; block : int; actions : action_type array; block_vals : int array}
+and enemy = {hp : int; block : int; actions : action_type array; block_vals : int array; selected_action : action_type}
 
 and player = {hp : int; mana : int; mana_cap : int; block : int; hand : hand; deck : deck}
 

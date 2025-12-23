@@ -1,2 +1,3 @@
 (library
- (name card_game))
+ (name card_game)
+ (libraries raylib))

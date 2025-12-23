@@ -25,7 +25,7 @@ let rec game_loop (game : game) =
         (* Enemies pick action *)
         let enemy_actions_selected = select_enemy_actions cards_drawn in
         (* Player plays their cards *)
-        let cards_played = play_cards cards_drawn enemy_actions_selected (Some print_game_state) in
+        let cards_played = play_cards enemy_actions_selected (Some print_game_state) in
         (* Remove dead enemies *)
         let removed_dead = remove_dead_enemies cards_played in
         (* Apply enemy actions *)

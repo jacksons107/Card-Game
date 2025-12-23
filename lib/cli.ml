@@ -64,18 +64,17 @@ let rec prompt_choose_target (c : card) (g : game) =
 (* TODO find a better way to render game state each time a card is played *)
 (* the player's turn, a loop allowing them to select and play cards unti they choose the end their turn
    takes an optional render function that renders the game state each time a card is played *)
-let rec play_cards (game : game) enemy_actions render_fun = 
+let rec play_cards (game : game) render_fun = 
     (match render_fun with
         | Some f -> f game
         | None -> ());
-    (* print_game_state game enemy_actions; *)
     let chosen_card = prompt_choose_card game in
     match chosen_card with
         | EndTurn -> game
         | Card c ->
             let target = prompt_choose_target c game in
             match target with
-                | UnselectCard -> play_cards game enemy_actions render_fun
+                | UnselectCard -> play_cards game render_fun
                 | Target t -> 
                     let applied = apply_card c t game in
-                    play_cards applied enemy_actions render_fun
+                    play_cards applied render_fun

@@ -101,7 +101,10 @@ let rec map_modifier (mod_action : action) times game (cards : target) =
     in
     map_modifier mod_action (times - 1) new_game cards
 
-(* Instantiate an action from an action_type. *)
+(* Instantiate an action from an action_type. To create a new action you have to
+   write a function determining what the action does, create an action_type to
+   represent it, and then add a new case to this function to map from the
+   action_type to the function call. *)
 let rec instantiate_action action_type = 
     match action_type with
         | Attack (d, t) -> attack_multiple d t

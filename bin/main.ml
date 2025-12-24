@@ -6,50 +6,6 @@ open Card_game.Rules
 open Card_game.Render
 
 
-type card_selection = 
-    | Selection of card
-    | NoSelection
-
-type game_state = {
-    game : game;
-    selected : card_selection
-}
-
-type interaction = 
-    | ClickCard of card
-    | ClickPlayer
-    | ClickEnemy of int
-    | ClickEndTurn
-
-type event = 
-    | SelectCard of card
-    | TargetPlayer of card
-    | TargetEnemy of int * card
-    | EndTurn
-
-type hitbox = {
-    x : int;
-    y : int;
-    w : int;
-    h : int
-}
-type ui_element = 
-    | CardUI of {card : card; box : hitbox}
-    | PlayerUI of {player : player; box : hitbox}
-    | EnemyUI of {id : int; box : hitbox}
-    | EndTurnUI of {box : hitbox}
-
-type draw_cmd = 
-    | DrawCard of {x : int; y : int; w : int; h : int; sel : bool; cost : int; act : action_type}
-    | DrawPlayer of {x : int; y : int; w : int; h : int; hp : int; block : int}
-    | DrawEnemy of {x : int; y : int; w : int; h : int; hp : int; block : int; act : action_type}
-    | DrawEndTurn of {x : int; y : int; w : int; h : int}
-
-type ui_layout = {
-    draw_cmds : draw_cmd list;
-    ui_elements : ui_element list
-}
-
 (* constants for the drawing cards *)
 let card_w = 120
 let card_h = 180
@@ -110,10 +66,15 @@ let interpret_interactions interactions game =
     let interpret game acc interaction = 
         match interaction with
             | ClickCard c -> 
-                SelectCard c :: acc
+                (* SelectCard c :: acc *)
+                (match game.selected with
+                    | Selection ({action_type = Modifier _; _} as s) -> (* if selected card is a modifier interpret a card click as targeting *)
+                        TargetCard (s, c) :: acc
+                    | _ -> 
+                        SelectCard c :: acc)
             | ClickPlayer ->
                 (match game.selected with
-                    | Selection c -> TargetPlayer c:: acc
+                    | Selection c -> TargetPlayer c :: acc
                     | NoSelection -> acc)
             | ClickEnemy id ->
                 (match game.selected with
@@ -133,6 +94,8 @@ let event_handler events game_state =
                 {game = apply_card c Player state.game; selected = NoSelection }
             | TargetEnemy (id, c) ->
                 {game = apply_card c (Enemy id) state.game; selected = NoSelection }
+            | TargetCard (c, t) ->
+                {game = apply_card c (Card t) state.game; selected = NoSelection} 
             | EndTurn ->
                 let new_game = pre_turn_processing (apply_enemy_actions state.game (get_enemy_actions state.game)) in
                 {game = new_game; selected = NoSelection} 
@@ -241,8 +204,6 @@ let () =
     let rec loop (layout : ui_layout) game_state =
         if window_should_close () then layout
         else begin
-            (* pre turn processing *)
-
             (* win/lose check *)
 
             (* calculate new layout and game state *)

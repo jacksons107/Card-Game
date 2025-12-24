@@ -107,11 +107,13 @@ let remove_dead_enemies (game : game)=
     in
     { game with enemies = alive_enemies }
 
+(* set the block for each enemy *)
 let set_enemies_block (game : game) = 
     let new_enemies = IntMap.map (fun e -> ({e with block = enemy_pick_block e} : enemy)) game.enemies in
     {game with enemies = new_enemies}
 
 
+(* do all the between-turn steps *)
 let pre_turn_processing (game : game) = 
     game
     |> remove_dead_enemies

@@ -19,11 +19,13 @@ type interaction =
     | ClickCard of card
     | ClickPlayer
     | ClickEnemy of int
+    | ClickEndTurn
 
 type event = 
     | SelectCard of card
     | TargetPlayer of card
     | TargetEnemy of int * card
+    | EndTurn
 
 type hitbox = {
     x : int;
@@ -35,11 +37,13 @@ type ui_element =
     | CardUI of {card : card; box : hitbox}
     | PlayerUI of {player : player; box : hitbox}
     | EnemyUI of {id : int; box : hitbox}
+    | EndTurnUI of {box : hitbox}
 
 type draw_cmd = 
     | DrawCard of {x : int; y : int; w : int; h : int; sel : bool; cost : int; act : action_type}
     | DrawPlayer of {x : int; y : int; w : int; h : int; hp : int; block : int}
     | DrawEnemy of {x : int; y : int; w : int; h : int; hp : int; block : int; act : action_type}
+    | DrawEndTurn of {x : int; y : int; w : int; h : int}
 
 type ui_layout = {
     draw_cmds : draw_cmd list;
@@ -63,6 +67,12 @@ let enemy_w = 120
 let enemy_h = 120
 let enemy_x = 1100
 let enemy_y = 250
+
+(* constants for drawing end turn button *)
+let end_turn_x = 1000
+let end_turn_y = 600
+let end_turn_w = 120
+let end_turn_h = 50
 
 let point_in_box mx my (box : hitbox) = 
     mx >= box.x &&
@@ -88,6 +98,10 @@ let collect_interactions (layout : ui_layout) =
                 if point_in_box (fst mouse) (snd mouse) e.box then
                     if pressed then
                         interactions := ClickEnemy e.id :: !interactions
+            | EndTurnUI b ->
+                if point_in_box (fst mouse) (snd mouse) b.box then
+                    if pressed then
+                        interactions := ClickEndTurn :: !interactions
     in
     List.iter check_element layout.ui_elements;
     !interactions
@@ -105,6 +119,8 @@ let interpret_interactions interactions game =
                 (match game.selected with
                     | Selection c -> TargetEnemy (id, c) :: acc
                     | NoSelection -> acc)
+            | ClickEndTurn ->
+                EndTurn :: acc
     in
     List.fold_left (interpret game) [] interactions 
 
@@ -117,6 +133,9 @@ let event_handler events game_state =
                 {game = apply_card c Player state.game; selected = NoSelection }
             | TargetEnemy (id, c) ->
                 {game = apply_card c (Enemy id) state.game; selected = NoSelection }
+            | EndTurn ->
+                let new_game = pre_turn_processing (apply_enemy_actions state.game (get_enemy_actions state.game)) in
+                {game = new_game; selected = NoSelection} 
     in
     List.fold_left handle game_state events
 
@@ -159,6 +178,12 @@ let gen_layout game_state =
     (* draw each enemy *)
     IntMap.iter gen_enemy_cmd game.enemies;
 
+    (* draw end turn button *)
+    let end_turn_cmd = DrawEndTurn {x=end_turn_x; y=end_turn_y; w=end_turn_w; h=end_turn_h} in
+    let end_turn_ui = EndTurnUI {box = {x=end_turn_x; y=end_turn_y; w=end_turn_w; h=end_turn_h}} in
+    draw_cmds := !draw_cmds @ [end_turn_cmd];
+    ui_elements := !ui_elements @ [end_turn_ui];
+
     {draw_cmds = !draw_cmds; ui_elements = !ui_elements}
     
 let draw_card x y w h sel cost act =
@@ -183,6 +208,10 @@ let draw_enemy x y w h hp block act =
     let action_string = string_of_action_type act in
     draw_text action_string (x + 15) (y + h/2) 5 Color.black
 
+let draw_end_turn x y w h = 
+    draw_rectangle x y w h Color.darkbrown;
+    draw_text "End Turn" (x + 10) (y + 10) 20 Color.white
+
 let draw_layout layout = 
     let draw_cmd cmd = 
         match cmd with
@@ -192,6 +221,8 @@ let draw_layout layout =
                 draw_player p.x p.y p.w p.h p.hp p.block
             | DrawEnemy e ->
                 draw_enemy e.x e.y e.w e.h e.hp e.block e.act
+            | DrawEndTurn b ->
+                draw_end_turn b.x b.y b.w b.h
     in
     List.iter draw_cmd layout.draw_cmds
 
@@ -200,7 +231,7 @@ let () =
     Random.self_init ();
     let enemies_simple = IntMap.add 0 enemy_simple IntMap.empty in
     let game_simple = {player = player_simple; enemies = enemies_simple} in
-    let game_state = {game = game_simple; selected = NoSelection} in
+    let game_state = {game = pre_turn_processing game_simple; selected = NoSelection} in
     let layout = gen_layout game_state in
 
     (* initialize window *)
@@ -210,6 +241,10 @@ let () =
     let rec loop (layout : ui_layout) game_state =
         if window_should_close () then layout
         else begin
+            (* pre turn processing *)
+
+            (* win/lose check *)
+
             (* calculate new layout and game state *)
             let interactions = collect_interactions layout in
             let events = interpret_interactions interactions game_state in

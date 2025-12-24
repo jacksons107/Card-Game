@@ -12,16 +12,16 @@ let rec game_loop (game : game) =
         print_endline "Player loses"
     else
         (* Player mana restored *)
-        let mana_restored = set_mana game game.player.mana_cap in
+        let mana_restored = set_mana game.player.mana_cap game in
         (* Player block reset *)
-        let player_block_reset = set_block mana_restored 0 Player in
+        let player_block_reset = set_block 0 Player mana_restored in
         (* Enemies set block *)
         let enemies_block_set = 
             let new_enemies = IntMap.map (fun e -> ({e with block = enemy_pick_block e} : enemy)) player_block_reset.enemies in
             {player_block_reset with enemies = new_enemies}
         in
         (* Player draws cards *)
-        let cards_drawn = draw_cards enemies_block_set 1 in
+        let cards_drawn = draw_cards 1 enemies_block_set in
         (* Enemies pick action *)
         let enemy_actions_selected = select_enemy_actions cards_drawn in
         (* Player plays their cards *)

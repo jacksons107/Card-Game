@@ -39,12 +39,12 @@ let enemy_pick_block (enemy : enemy) =
     pick_rand_element enemy.block_vals
 
 (* helper to set the player's mana *)
-let set_mana (game : game) new_mana =
+let set_mana new_mana (game : game) =
     let new_player = {game.player with mana = new_mana} in
     {game with player = new_player}
 
 (* helper to set the block of a player or enemy *)
-let set_block (game : game) new_block target = 
+let set_block new_block target (game : game) = 
     match target with
         | Player ->
             let new_player = {game.player with block = new_block} in
@@ -85,7 +85,7 @@ let take_top_deck (d : deck) =
         | x::xs -> (Some x, xs)
 
 (* draws the specified number of cards from the deck, returns a new game state *)
-let rec draw_cards (game : game) num_cards = 
+let rec draw_cards num_cards (game : game) = 
     if num_cards = 0 then game else
     let top_card = take_top_deck game.player.deck in
     match top_card with
@@ -96,7 +96,7 @@ let rec draw_cards (game : game) num_cards =
                             deck = new_d}
             in
             let new_game = {game with player = new_p} in
-            draw_cards new_game (num_cards - 1)
+            draw_cards (num_cards - 1) new_game
 
 (* Removes all dead enemies (hp <= 0) from the game *)
 let remove_dead_enemies (game : game)=
@@ -106,3 +106,17 @@ let remove_dead_enemies (game : game)=
             game.enemies
     in
     { game with enemies = alive_enemies }
+
+let set_enemies_block (game : game) = 
+    let new_enemies = IntMap.map (fun e -> ({e with block = enemy_pick_block e} : enemy)) game.enemies in
+    {game with enemies = new_enemies}
+
+
+let pre_turn_processing (game : game) = 
+    game
+    |> remove_dead_enemies
+    |> select_enemy_actions
+    |> (draw_cards 1)
+    |> set_enemies_block
+    |> (set_block 0 Player)
+    |> (set_mana game.player.mana_cap)

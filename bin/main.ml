@@ -37,36 +37,42 @@ let point_in_box mx my (box : hitbox) =
     my <= box.y + box.h
 
 let collect_interactions (layout : ui_layout) = 
-    let mouse = (get_mouse_x (), get_mouse_y ()) in 
+    let mouse_x, mouse_y = (get_mouse_x (), get_mouse_y ()) in 
     let pressed = is_mouse_button_pressed MouseButton.Left in
     let interactions = ref [] in
+    let hit_something = ref false in
     let check_element element = 
+        let hit box = 
+            point_in_box mouse_x mouse_y box
+        in
         match element with
-            | CardUI c ->
-                if point_in_box (fst mouse) (snd mouse) c.box then
-                    if pressed then
-                        interactions := ClickCard c.card :: !interactions
-            | PlayerUI p ->
-                if point_in_box (fst mouse) (snd mouse) p.box then
-                    if pressed then
-                        interactions := ClickPlayer :: !interactions
-            | EnemyUI e ->
-                if point_in_box (fst mouse) (snd mouse) e.box then
-                    if pressed then
-                        interactions := ClickEnemy e.id :: !interactions
-            | EndTurnUI b ->
-                if point_in_box (fst mouse) (snd mouse) b.box then
-                    if pressed then
-                        interactions := ClickEndTurn :: !interactions
+            | CardUI c when hit c.box ->
+                hit_something := true;
+                if pressed then interactions := ClickCard c.card :: !interactions
+            | PlayerUI p when hit p.box ->
+                hit_something := true;
+                if pressed then interactions := ClickPlayer :: !interactions
+            | EnemyUI e when hit e.box ->
+                hit_something := true;
+                if pressed then interactions := ClickEnemy e.id :: !interactions
+            | EndTurnUI b when hit b.box ->
+                hit_something := true;
+                if pressed then interactions := ClickEndTurn :: !interactions
+            | _ -> ()
+
     in
     List.iter check_element layout.ui_elements;
+
+    (* if click was not on any ui element *)
+    if pressed && not !hit_something then 
+        interactions := ClickNothing :: !interactions;
+
     !interactions
 
 let interpret_interactions interactions game = 
     let interpret game acc interaction = 
         match interaction with
             | ClickCard c -> 
-                (* SelectCard c :: acc *)
                 (match game.selected with
                     | Selection ({action_type = Modifier _; _} as s) -> (* if selected card is a modifier interpret a card click as targeting *)
                         TargetCard (s, c) :: acc
@@ -82,6 +88,10 @@ let interpret_interactions interactions game =
                     | NoSelection -> acc)
             | ClickEndTurn ->
                 EndTurn :: acc
+            | ClickNothing ->
+                (match game.selected with
+                    | Selection _ -> Unselect :: acc
+                    | NoSelection -> acc)
     in
     List.fold_left (interpret game) [] interactions 
 
@@ -90,10 +100,12 @@ let event_handler events game_state =
         match event with
             | SelectCard c ->
                 {state with selected = Selection c}
+            | Unselect ->
+                {state with selected = NoSelection}
             | TargetPlayer c ->
-                {game = apply_card c Player state.game; selected = NoSelection }
+                {game = apply_card c Player state.game; selected = NoSelection}
             | TargetEnemy (id, c) ->
-                {game = apply_card c (Enemy id) state.game; selected = NoSelection }
+                {game = apply_card c (Enemy id) state.game; selected = NoSelection}
             | TargetCard (c, t) ->
                 {game = apply_card c (Card t) state.game; selected = NoSelection} 
             | EndTurn ->

@@ -48,12 +48,14 @@ type interaction =
     | ClickPlayer
     | ClickEnemy of int
     | ClickEndTurn
+    | ClickNothing
 
 type event = 
     | SelectCard of card
     | TargetPlayer of card
     | TargetEnemy of int * card
     | TargetCard of card * card
+    | Unselect
     | EndTurn
 
 type hitbox = {

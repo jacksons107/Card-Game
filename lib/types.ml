@@ -3,7 +3,9 @@ module IntMap = Map.Make(Int)
 
 (* === game logic types === *)
 
-type game = {player : player; enemies : enemy IntMap.t}
+type end_state = Victory | Defeat | Ongoing
+
+type game = {player : player; enemies : enemy IntMap.t; end_state : end_state}
 
 and enemy = {hp : int; block : int; actions : action_type array; block_vals : int array; selected_action : action_type}
 
@@ -81,6 +83,8 @@ type draw_cmd =
     | DrawEnemy of {x : int; y : int; w : int; h : int; hil : bool; hp : int; block : int; act : action_type}
     | DrawHand of {x : int; y : int; w : int; h : int; hil : bool}
     | DrawEndTurn of {x : int; y : int; w : int; h : int}
+    | DrawVictoryScreen of {x : int; y : int}
+    | DrawDefeatScreen of {x : int; y : int}
 
 type ui_layout = {
     draw_cmds : draw_cmd list;

@@ -122,7 +122,15 @@ let event_handler events game_state =
                 let new_game = pre_turn_processing (apply_enemy_actions state.game (get_enemy_actions state.game)) in
                 {game = new_game; selected = NoSelection} 
     in
-    List.fold_left handle game_state events
+    (* Freeze game state if end state is reached *)
+    match game_state.game.end_state with
+        | Victory | Defeat ->
+            game_state
+        | Ongoing ->
+            let new_state = List.fold_left handle game_state events in
+            (* TODO maybe inefficient to do this processing if a card was not actually played *)
+            (* remove dead enemies and check for end states *)
+            {new_state with game = post_action_check new_state.game}
 
 (* determine if an action type is a valid target based on a list of target kinds *)
 let is_valid_target_kind ui_type target_kinds = 
@@ -241,6 +249,12 @@ let gen_layout game_state =
     (* disable end turn button if a card is selected *)
     if not is_selection then ui_elements := !ui_elements @ [end_turn_ui];
 
+    (* draw victory or defeat screens *)
+    (match game.end_state with
+        | Victory -> draw_cmds := !draw_cmds @ [DrawVictoryScreen {x=540; y=360}]
+        | Defeat -> draw_cmds := !draw_cmds @ [DrawDefeatScreen {x=540; y=360}]
+        | Ongoing -> ());
+
     {draw_cmds = !draw_cmds; ui_elements = !ui_elements}
 
 let draw_card x y w h sel hil cost act =
@@ -281,6 +295,12 @@ let draw_end_turn x y w h =
     draw_rectangle x y w h Color.darkbrown;
     draw_text "End Turn" (x + 10) (y + 10) 20 Color.white
 
+let draw_victory x y =  
+    draw_text "Victory" x y 50 Color.blue
+
+let draw_defeat x y =  
+    draw_text "Defeat" x y 50 Color.red
+
 let draw_layout layout = 
     let draw_cmd cmd = 
         match cmd with
@@ -294,6 +314,10 @@ let draw_layout layout =
                 draw_hand h.x h.y h.w h.h h.hil
             | DrawEndTurn b ->
                 draw_end_turn b.x b.y b.w b.h
+            | DrawVictoryScreen s ->
+                draw_victory s.x s.y
+            | DrawDefeatScreen s ->
+                draw_defeat s.x s.y
     in
     List.iter draw_cmd layout.draw_cmds
 
@@ -301,9 +325,9 @@ let () =
     (* initialize game starting state *)
     Random.self_init ();
     let enemies_simple = IntMap.add 0 enemy_simple IntMap.empty in
-    let game_simple = {player = player_simple; enemies = enemies_simple} in
-    let game_state = {game = pre_turn_processing game_simple; selected = NoSelection} in
-    let layout = gen_layout game_state in
+    let game_simple = {player = player_simple; enemies = enemies_simple; end_state = Ongoing} in
+    let og_game_state = {game = pre_turn_processing game_simple; selected = NoSelection} in
+    let og_layout = gen_layout og_game_state in
 
     (* initialize window *)
     init_window 1280 720 "OCaml Card Game";
@@ -330,7 +354,7 @@ let () =
 
             loop new_layout new_game_state
         end
-        in
+    in
 
-        ignore (loop layout game_state);
-        close_window ()
+    ignore (loop og_layout og_game_state);
+    close_window ()

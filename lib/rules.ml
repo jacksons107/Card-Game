@@ -122,6 +122,20 @@ let get_target_kinds action_type =
                 | PowInc _ -> [TKCard]
                 | Map _ -> [TKHand; TKDeck]
 
+let set_end_state (game : game) = 
+    if game.player.hp <= 0 then 
+        {game with end_state = Defeat}
+    else if IntMap.is_empty game.enemies then 
+        {game with end_state = Victory}
+    else 
+        game
+
+(* steps to do after every action *)
+let post_action_check (game : game) = 
+    game
+    |> remove_dead_enemies
+    |> set_end_state
+    
 (* do all the between-turn steps *)
 let pre_turn_processing (game : game) = 
     game
@@ -131,3 +145,4 @@ let pre_turn_processing (game : game) =
     |> set_enemies_block
     |> (set_block 0 Player)
     |> (set_mana game.player.mana_cap)
+    |> set_end_state

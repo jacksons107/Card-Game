@@ -49,6 +49,7 @@ type interaction =
     | ClickCard of card
     | ClickPlayer
     | ClickEnemy of int
+    | ClickHand
     | ClickEndTurn
     | ClickNothing
 
@@ -57,6 +58,7 @@ type event =
     | TargetPlayer of card
     | TargetEnemy of int * card
     | TargetCard of card * card
+    | TargetHand of card
     | Unselect
     | EndTurn
 
@@ -70,12 +72,14 @@ type ui_element =
     | CardUI of {card : card; box : hitbox}
     | PlayerUI of {player : player; box : hitbox}
     | EnemyUI of {id : int; box : hitbox}
+    | HandUI of {box : hitbox}
     | EndTurnUI of {box : hitbox}
 
 type draw_cmd = 
     | DrawCard of {x : int; y : int; w : int; h : int; sel : bool; hil : bool; cost : int; act : action_type}
     | DrawPlayer of {x : int; y : int; w : int; h : int; hil : bool; hp : int; block : int}
     | DrawEnemy of {x : int; y : int; w : int; h : int; hil : bool; hp : int; block : int; act : action_type}
+    | DrawHand of {x : int; y : int; w : int; h : int; hil : bool}
     | DrawEndTurn of {x : int; y : int; w : int; h : int}
 
 type ui_layout = {

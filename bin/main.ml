@@ -9,7 +9,8 @@ open Card_game.Render
 (* constants for the drawing cards *)
 let card_w = 120
 let card_h = 180
-let hand_x_spacing i = 500 + i * 140
+let hand_x = 300
+let hand_x_spacing i = (hand_x + 50) + i * 140
 let hand_y = 500
 
 (* constants for drawing player *)
@@ -55,6 +56,9 @@ let collect_interactions (layout : ui_layout) =
             | EnemyUI e when hit e.box ->
                 hit_something := true;
                 if pressed then interactions := ClickEnemy e.id :: !interactions
+            | HandUI h when hit h.box ->
+                hit_something := true;
+                if pressed then interactions := ClickHand :: !interactions
             | EndTurnUI b when hit b.box ->
                 hit_something := true;
                 if pressed then interactions := ClickEndTurn :: !interactions
@@ -86,6 +90,10 @@ let interpret_interactions interactions game =
                 (match game.selected with
                     | Selection c -> TargetEnemy (id, c) :: acc
                     | NoSelection -> acc)
+            | ClickHand ->
+                (match game.selected with
+                    | Selection c -> TargetHand c :: acc
+                    | NoSelection -> acc)
             | ClickEndTurn ->
                 EndTurn :: acc
             | ClickNothing ->
@@ -108,6 +116,8 @@ let event_handler events game_state =
                 {game = apply_card c (Enemy id) state.game; selected = NoSelection}
             | TargetCard (c, t) ->
                 {game = apply_card c (Card t) state.game; selected = NoSelection} 
+            | TargetHand c ->
+                {game = apply_card c Hand state.game; selected = NoSelection}
             | EndTurn ->
                 let new_game = pre_turn_processing (apply_enemy_actions state.game (get_enemy_actions state.game)) in
                 {game = new_game; selected = NoSelection} 
@@ -122,6 +132,7 @@ let is_valid_target_kind ui_type target_kinds =
                 | EnemyUI _, TKEnemy -> true
                 | PlayerUI _, TKPlayer -> true
                 | CardUI _, TKCard -> true
+                | HandUI _, TKHand -> true
                 | _ -> false)
         target_kinds
 
@@ -129,19 +140,56 @@ let gen_layout game_state =
     let draw_cmds = ref [] in
     let ui_elements = ref [] in
     let game = game_state.game in
-
-    (* draw cards *)
     let selected = game_state.selected in
     let valid_targets = 
         match selected with
             | Selection c -> get_target_kinds c.action_type
             | NoSelection -> []
     in
+    (* indicates if a card is selected *)
+    let is_selection = 
+        match selected with
+            | Selection _ -> true
+            | NoSelection -> false
+    in
+    (* TODO might be a better way to determine toggling of these variables *)
+    let targeting_player = List.mem TKPlayer valid_targets in
+    let targeting_enemy = List.mem TKEnemy valid_targets in
+    let targeting_hand = List.mem TKHand valid_targets in
+    (* draw hand *)
+    let hand_w =
+        match List.length game.player.hand with
+        | 0 -> 0
+        | n ->
+            let last_card_x = hand_x_spacing (n - 1) in
+            (last_card_x + card_w + 50) - hand_x
+    in
+    (* TODO should have the box is these situations be a variable to keep the ui element and the draw command coupled *)
+    let hand_ui = HandUI {box = {x=hand_x; y=hand_y - 25; w=hand_w; h=card_h + 50}} in
+    let hand_cmd = 
+        match selected with
+            | Selection _ when is_valid_target_kind hand_ui valid_targets ->
+                DrawHand {x=hand_x; y=hand_y - 25; w=hand_w; h=card_h + 50; hil=true}
+            | _ ->
+                DrawHand {x=hand_x; y=hand_y; w=hand_w; h=card_h + 50; hil=false}
+    in
+    draw_cmds := !draw_cmds @ [hand_cmd];
+    (* only add the hand ui element if the selected card is targeting the hand *)
+    if targeting_hand then ui_elements := !ui_elements @ [hand_ui];
+
+    (* draw cards *)
     let gen_card_cmd i card =
         let x = hand_x_spacing i in
         let y = hand_y in
         let card_ui = CardUI {card = card; box = {x=x; y=y; w=card_w; h=card_h}} in
-        ui_elements := !ui_elements @ [card_ui];
+        (* TODO can probably refactor this logic better since selected is matched against twice *)
+        let is_selected_card =
+        match selected with
+            | Selection c when c.id = card.id -> true
+            | _ -> false
+        in
+        (* only add ui element if selected card is not targeting the hand *)
+        if not targeting_hand && not is_selected_card then ui_elements := !ui_elements @ [card_ui];
         match selected with
             (* this card is the selected card *)
             | Selection c when c.id = card.id ->
@@ -167,7 +215,7 @@ let gen_layout game_state =
                 DrawPlayer {x=player_x; y=player_y; w=player_w; h=player_h; hil=false ;hp=player.hp; block=player.block}
     in
     draw_cmds := !draw_cmds @ [player_cmd];
-    ui_elements := !ui_elements @ [player_ui];
+    if targeting_player then ui_elements := !ui_elements @ [player_ui];
 
     (* draw enemies *)
     let gen_enemy_cmd id _ = 
@@ -181,7 +229,7 @@ let gen_layout game_state =
                     DrawEnemy {x=enemy_x; y=enemy_y; w=enemy_w; h=enemy_h; hil=false; hp=enemy.hp; block=enemy.block; act=enemy.selected_action}
         in
         draw_cmds := !draw_cmds @ [enemy_cmd];
-        ui_elements := !ui_elements @ [enemy_ui]
+        if targeting_enemy then ui_elements := !ui_elements @ [enemy_ui]
     in
     (* draw each enemy *)
     IntMap.iter gen_enemy_cmd game.enemies;
@@ -190,7 +238,8 @@ let gen_layout game_state =
     let end_turn_cmd = DrawEndTurn {x=end_turn_x; y=end_turn_y; w=end_turn_w; h=end_turn_h} in
     let end_turn_ui = EndTurnUI {box = {x=end_turn_x; y=end_turn_y; w=end_turn_w; h=end_turn_h}} in
     draw_cmds := !draw_cmds @ [end_turn_cmd];
-    ui_elements := !ui_elements @ [end_turn_ui];
+    (* disable end turn button if a card is selected *)
+    if not is_selection then ui_elements := !ui_elements @ [end_turn_ui];
 
     {draw_cmds = !draw_cmds; ui_elements = !ui_elements}
 
@@ -215,7 +264,7 @@ let draw_player x y w h hil hp block =
     draw_text (string_of_int block) (x + w - 20) (y + 10) 20 Color.white
 
 let draw_enemy x y w h hil hp block act = 
-        (if hil then
+    (if hil then
         draw_rectangle x y w h Color.gold
     else
         draw_rectangle x y w h Color.red);
@@ -223,6 +272,10 @@ let draw_enemy x y w h hil hp block act =
     draw_text (string_of_int block) (x + w - 20) (y + 10) 20 Color.black;
     let action_string = string_of_action_type act in
     draw_text action_string (x + 15) (y + h/2) 5 Color.black
+
+let draw_hand x y w h hil = 
+    if hil then
+        draw_rectangle x y w h Color.gold
 
 let draw_end_turn x y w h = 
     draw_rectangle x y w h Color.darkbrown;
@@ -237,6 +290,8 @@ let draw_layout layout =
                 draw_player p.x p.y p.w p.h p.hil p.hp p.block
             | DrawEnemy e ->
                 draw_enemy e.x e.y e.w e.h e.hil e.hp e.block e.act
+            | DrawHand h ->
+                draw_hand h.x h.y h.w h.h h.hil
             | DrawEndTurn b ->
                 draw_end_turn b.x b.y b.w b.h
     in
@@ -263,7 +318,7 @@ let () =
             let interactions = collect_interactions layout in
             let events = interpret_interactions interactions game_state in
             let new_game_state = event_handler events game_state in
-            let new_layout = gen_layout game_state in
+            let new_layout = gen_layout new_game_state in
 
             begin_drawing ();
             clear_background Color.raywhite;

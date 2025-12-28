@@ -31,6 +31,16 @@ let end_turn_y = 600
 let end_turn_w = 120
 let end_turn_h = 50
 
+(* constants for drawing mana bar *)
+let mana_bar_x = 100
+let mana_bar_y = 50
+let mana_bar_w = 100
+let mana_bar_h = 50
+
+(* constants for drawing end state screens *)
+let end_message_x = 540
+let end_message_y = 360
+
 let point_in_box mx my (box : hitbox) = 
     mx >= box.x &&
     mx <= box.x + box.w &&
@@ -242,6 +252,9 @@ let gen_layout game_state =
     (* draw each enemy *)
     IntMap.iter gen_enemy_cmd game.enemies;
 
+    (* draw mana bar *)
+    draw_cmds := !draw_cmds @ [DrawManaBar {x=mana_bar_x; y=mana_bar_y; w=mana_bar_w; h=mana_bar_h; remain=game.player.mana; cap=game.player.mana_cap}];
+
     (* draw end turn button *)
     let end_turn_cmd = DrawEndTurn {x=end_turn_x; y=end_turn_y; w=end_turn_w; h=end_turn_h} in
     let end_turn_ui = EndTurnUI {box = {x=end_turn_x; y=end_turn_y; w=end_turn_w; h=end_turn_h}} in
@@ -251,8 +264,8 @@ let gen_layout game_state =
 
     (* draw victory or defeat screens *)
     (match game.end_state with
-        | Victory -> draw_cmds := !draw_cmds @ [DrawVictoryScreen {x=540; y=360}]
-        | Defeat -> draw_cmds := !draw_cmds @ [DrawDefeatScreen {x=540; y=360}]
+        | Victory -> draw_cmds := !draw_cmds @ [DrawVictoryScreen {x=end_message_x; y=end_message_y}]
+        | Defeat -> draw_cmds := !draw_cmds @ [DrawDefeatScreen {x=end_message_x; y=end_message_y}]
         | Ongoing -> ());
 
     {draw_cmds = !draw_cmds; ui_elements = !ui_elements}
@@ -295,6 +308,10 @@ let draw_end_turn x y w h =
     draw_rectangle x y w h Color.darkbrown;
     draw_text "End Turn" (x + 10) (y + 10) 20 Color.white
 
+let draw_mana_bar x y w h remain cap = 
+    draw_rectangle x y w h Color.blue;
+    draw_text (Printf.sprintf "%d / %d" remain cap) (x + 10) (y + 10) 20 Color.white
+
 let draw_victory x y =  
     draw_text "Victory" x y 50 Color.blue
 
@@ -314,6 +331,8 @@ let draw_layout layout =
                 draw_hand h.x h.y h.w h.h h.hil
             | DrawEndTurn b ->
                 draw_end_turn b.x b.y b.w b.h
+            | DrawManaBar m ->
+                draw_mana_bar m.x m.y m.w m.h m.remain m.cap
             | DrawVictoryScreen s ->
                 draw_victory s.x s.y
             | DrawDefeatScreen s ->

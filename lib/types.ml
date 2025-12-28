@@ -83,6 +83,7 @@ type draw_cmd =
     | DrawEnemy of {x : int; y : int; w : int; h : int; hil : bool; hp : int; block : int; act : action_type}
     | DrawHand of {x : int; y : int; w : int; h : int; hil : bool}
     | DrawEndTurn of {x : int; y : int; w : int; h : int}
+    | DrawManaBar of {x : int; y : int; w : int; h : int; remain : int; cap : int}
     | DrawVictoryScreen of {x : int; y : int}
     | DrawDefeatScreen of {x : int; y : int}
 

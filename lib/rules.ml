@@ -112,6 +112,15 @@ let set_enemies_block (game : game) =
     let new_enemies = IntMap.map (fun e -> ({e with block = enemy_pick_block e} : enemy)) game.enemies in
     {game with enemies = new_enemies}
 
+(* get the target kinds of an action type *)
+let get_target_kinds action_type = 
+    match action_type with
+        | Attack _ -> [TKEnemy]
+        | Block _ -> [TKPlayer]
+        | Modifier m ->
+            match m with
+                | PowInc _ -> [TKCard]
+                | Map _ -> [TKHand; TKDeck]
 
 (* do all the between-turn steps *)
 let pre_turn_processing (game : game) = 

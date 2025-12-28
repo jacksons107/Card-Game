@@ -114,6 +114,17 @@ let event_handler events game_state =
     in
     List.fold_left handle game_state events
 
+(* determine if an action type is a valid target based on a list of target kinds *)
+let is_valid_target_kind ui_type target_kinds = 
+    List.exists 
+        (fun kind -> 
+            match ui_type, kind with
+                | EnemyUI _, TKEnemy -> true
+                | PlayerUI _, TKPlayer -> true
+                | CardUI _, TKCard -> true
+                | _ -> false)
+        target_kinds
+
 let gen_layout game_state = 
     let draw_cmds = ref [] in
     let ui_elements = ref [] in
@@ -121,32 +132,54 @@ let gen_layout game_state =
 
     (* draw cards *)
     let selected = game_state.selected in
+    let valid_targets = 
+        match selected with
+            | Selection c -> get_target_kinds c.action_type
+            | NoSelection -> []
+    in
     let gen_card_cmd i card =
         let x = hand_x_spacing i in
         let y = hand_y in
         let card_ui = CardUI {card = card; box = {x=x; y=y; w=card_w; h=card_h}} in
         ui_elements := !ui_elements @ [card_ui];
         match selected with
+            (* this card is the selected card *)
             | Selection c when c.id = card.id ->
-                draw_cmds :=  !draw_cmds @ [DrawCard {x=x; y=y; w=card_w; h=card_h; sel = true; cost = card.cost; act = card.action_type}]
+                draw_cmds :=  !draw_cmds @ [DrawCard {x=x; y=y; w=card_w; h=card_h; sel = true; hil = false; cost = card.cost; act = card.action_type}]
+            (* the selected card targets individual cards *)
+            | Selection _ when is_valid_target_kind card_ui valid_targets ->
+                draw_cmds :=  !draw_cmds @ [DrawCard {x=x; y=y; w=card_w; h=card_h; sel = false; hil = true; cost = card.cost; act = card.action_type}]
+
             | _ ->
-                draw_cmds :=  !draw_cmds @ [DrawCard {x=x; y=y; w=card_w; h=card_h; sel = false; cost = card.cost; act = card.action_type}]
+                draw_cmds :=  !draw_cmds @ [DrawCard {x=x; y=y; w=card_w; h=card_h; sel = false; hil = false; cost = card.cost; act = card.action_type}]
     in
     (* draw each card in hand *)
     List.iteri gen_card_cmd game.player.hand;
 
     (* draw player *)
     let player = game_state.game.player in
-    let player_cmd = DrawPlayer {x=player_x; y=player_y; w=player_w; h=player_h; hp=player.hp; block=player.block} in
     let player_ui = PlayerUI {player=player; box = {x=player_x; y=player_y; w=player_w; h=player_h}} in
+    let player_cmd =
+        match selected with
+            | Selection _ when is_valid_target_kind player_ui valid_targets ->
+                DrawPlayer {x=player_x; y=player_y; w=player_w; h=player_h; hil=true ;hp=player.hp; block=player.block}
+            | _ -> 
+                DrawPlayer {x=player_x; y=player_y; w=player_w; h=player_h; hil=false ;hp=player.hp; block=player.block}
+    in
     draw_cmds := !draw_cmds @ [player_cmd];
     ui_elements := !ui_elements @ [player_ui];
 
     (* draw enemies *)
     let gen_enemy_cmd id _ = 
         let enemy = IntMap.find id game.enemies in
-        let enemy_cmd = DrawEnemy {x=enemy_x; y=enemy_y; w=enemy_w; h=enemy_h; hp=enemy.hp; block=enemy.block; act=enemy.selected_action} in
         let enemy_ui = EnemyUI {id=id; box = {x=enemy_x; y=enemy_y; w=enemy_w; h=enemy_h}} in
+        let enemy_cmd =
+            match selected with
+                | Selection _ when is_valid_target_kind enemy_ui valid_targets ->
+                    DrawEnemy {x=enemy_x; y=enemy_y; w=enemy_w; h=enemy_h; hil=true; hp=enemy.hp; block=enemy.block; act=enemy.selected_action}
+                | _ ->
+                    DrawEnemy {x=enemy_x; y=enemy_y; w=enemy_w; h=enemy_h; hil=false; hp=enemy.hp; block=enemy.block; act=enemy.selected_action}
+        in
         draw_cmds := !draw_cmds @ [enemy_cmd];
         ui_elements := !ui_elements @ [enemy_ui]
     in
@@ -160,10 +193,12 @@ let gen_layout game_state =
     ui_elements := !ui_elements @ [end_turn_ui];
 
     {draw_cmds = !draw_cmds; ui_elements = !ui_elements}
-    
-let draw_card x y w h sel cost act =
+
+let draw_card x y w h sel hil cost act =
     (if sel then
         draw_rectangle x y w h Color.green
+    else if hil then
+        draw_rectangle x y w h Color.gold
     else
         draw_rectangle x y w h Color.lightgray);
     draw_rectangle_lines x y w h Color.darkgray;
@@ -171,13 +206,19 @@ let draw_card x y w h sel cost act =
     let action_string = string_of_action_type act in
     draw_text action_string (x + 15) (y + h/2) 5 Color.black
 
-let draw_player x y w h hp block = 
-    draw_rectangle x y w h Color.blue;
+let draw_player x y w h hil hp block = 
+    (if hil then
+        draw_rectangle x y w h Color.gold
+    else
+        draw_rectangle x y w h Color.blue);
     draw_text (string_of_int hp) (x + 10) (y + 10) 20 Color.white;
     draw_text (string_of_int block) (x + w - 20) (y + 10) 20 Color.white
 
-let draw_enemy x y w h hp block act = 
-    draw_rectangle x y w h Color.red;
+let draw_enemy x y w h hil hp block act = 
+        (if hil then
+        draw_rectangle x y w h Color.gold
+    else
+        draw_rectangle x y w h Color.red);
     draw_text (string_of_int hp) (x + 10) (y + 10) 20 Color.black;
     draw_text (string_of_int block) (x + w - 20) (y + 10) 20 Color.black;
     let action_string = string_of_action_type act in
@@ -191,11 +232,11 @@ let draw_layout layout =
     let draw_cmd cmd = 
         match cmd with
             | DrawCard c ->
-                draw_card c.x c.y c.w c.h c.sel c.cost c.act
+                draw_card c.x c.y c.w c.h c.sel c.hil c.cost c.act
             | DrawPlayer p ->
-                draw_player p.x p.y p.w p.h p.hp p.block
+                draw_player p.x p.y p.w p.h p.hil p.hp p.block
             | DrawEnemy e ->
-                draw_enemy e.x e.y e.w e.h e.hp e.block e.act
+                draw_enemy e.x e.y e.w e.h e.hil e.hp e.block e.act
             | DrawEndTurn b ->
                 draw_end_turn b.x b.y b.w b.h
     in

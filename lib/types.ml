@@ -30,6 +30,8 @@ and action = game -> target -> game
 (* potential targets of an action *)
 and target = Player | Enemy of int | Card of card | Hand | Deck
 
+and target_kind = TKPlayer | TKEnemy | TKCard | TKHand | TKDeck
+
 
 (* === ui-related types === *)
 
@@ -71,9 +73,9 @@ type ui_element =
     | EndTurnUI of {box : hitbox}
 
 type draw_cmd = 
-    | DrawCard of {x : int; y : int; w : int; h : int; sel : bool; cost : int; act : action_type}
-    | DrawPlayer of {x : int; y : int; w : int; h : int; hp : int; block : int}
-    | DrawEnemy of {x : int; y : int; w : int; h : int; hp : int; block : int; act : action_type}
+    | DrawCard of {x : int; y : int; w : int; h : int; sel : bool; hil : bool; cost : int; act : action_type}
+    | DrawPlayer of {x : int; y : int; w : int; h : int; hil : bool; hp : int; block : int}
+    | DrawEnemy of {x : int; y : int; w : int; h : int; hil : bool; hp : int; block : int; act : action_type}
     | DrawEndTurn of {x : int; y : int; w : int; h : int}
 
 type ui_layout = {

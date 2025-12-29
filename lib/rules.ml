@@ -56,19 +56,15 @@ let set_block new_block target (game : game) =
             failwith "Can only set block of player or enemy." 
 
 (* TODO should this be involved in discarding? *)
-(* TODO incorrectly reorders hand *)
 (* removes a specific card from the player's hand, return the new hand *)
-let remove_from_hand (c : card) (h : hand) = 
-    let rec _remove c h (acc : hand) = 
-        match h with
-            | [] -> acc
-            | x::xs -> 
-                if x.id = c.id then
-                    acc@xs
-                else
-                    _remove c xs acc@[x]
-    in
-    _remove c h []
+let rec remove_from_hand (c : card) (h : hand) = 
+    match h with
+    | [] -> []
+    | x :: xs ->
+        if x.id = c.id then
+        xs
+        else
+        x :: remove_from_hand c xs
 
 (* applies a card (the card's action) to the specified target *)
 let apply_card (c : card) (t : target) (g : game) = 

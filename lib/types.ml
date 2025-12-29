@@ -52,15 +52,18 @@ type interaction =
     | ClickPlayer
     | ClickEnemy of int
     | ClickHand
+    | ClickDeck
     | ClickEndTurn
     | ClickNothing
 
+(* first card in Target constructors is the card that is doing the targeting *)
 type event = 
     | SelectCard of card
     | TargetPlayer of card
     | TargetEnemy of int * card
     | TargetCard of card * card
     | TargetHand of card
+    | TargetDeck of card
     | Unselect
     | EndTurn
 
@@ -75,6 +78,7 @@ type ui_element =
     | PlayerUI of {player : player; box : hitbox}
     | EnemyUI of {id : int; box : hitbox}
     | HandUI of {box : hitbox}
+    | DeckUI of {box : hitbox}
     | EndTurnUI of {box : hitbox}
 
 type draw_cmd = 
@@ -84,6 +88,7 @@ type draw_cmd =
     | DrawHand of {x : int; y : int; w : int; h : int; hil : bool}
     | DrawEndTurn of {x : int; y : int; w : int; h : int}
     | DrawManaBar of {x : int; y : int; w : int; h : int; remain : int; cap : int}
+    | DrawDeck of {x : int; y : int; w : int; h : int; hil : bool; size : int}
     | DrawVictoryScreen of {x : int; y : int}
     | DrawDefeatScreen of {x : int; y : int}
 

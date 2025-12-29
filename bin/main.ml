@@ -37,6 +37,12 @@ let mana_bar_y = 50
 let mana_bar_w = 100
 let mana_bar_h = 50
 
+(* constants for drawing deck *)
+let deck_x = 100
+let deck_y = 550
+let deck_w = 50
+let deck_h = 50
+
 (* constants for drawing end state screens *)
 let end_message_x = 540
 let end_message_y = 360
@@ -69,6 +75,9 @@ let collect_interactions (layout : ui_layout) =
             | HandUI h when hit h.box ->
                 hit_something := true;
                 if pressed then interactions := ClickHand :: !interactions
+            | DeckUI d when hit d.box ->
+                hit_something := true;
+                if pressed then interactions := ClickDeck :: !interactions
             | EndTurnUI b when hit b.box ->
                 hit_something := true;
                 if pressed then interactions := ClickEndTurn :: !interactions
@@ -104,6 +113,10 @@ let interpret_interactions interactions game =
                 (match game.selected with
                     | Selection c -> TargetHand c :: acc
                     | NoSelection -> acc)
+            | ClickDeck ->
+                (match game.selected with
+                    | Selection c -> TargetDeck c :: acc
+                    | NoSelection -> acc)
             | ClickEndTurn ->
                 EndTurn :: acc
             | ClickNothing ->
@@ -128,6 +141,8 @@ let event_handler events game_state =
                 {game = apply_card c (Card t) state.game; selected = NoSelection} 
             | TargetHand c ->
                 {game = apply_card c Hand state.game; selected = NoSelection}
+            | TargetDeck c ->
+                {game = apply_card c Deck state.game; selected = NoSelection}
             | EndTurn ->
                 let new_game = pre_turn_processing (apply_enemy_actions state.game (get_enemy_actions state.game)) in
                 {game = new_game; selected = NoSelection} 
@@ -151,6 +166,7 @@ let is_valid_target_kind ui_type target_kinds =
                 | PlayerUI _, TKPlayer -> true
                 | CardUI _, TKCard -> true
                 | HandUI _, TKHand -> true
+                | DeckUI _, TKDeck -> true
                 | _ -> false)
         target_kinds
 
@@ -174,6 +190,20 @@ let gen_layout game_state =
     let targeting_player = List.mem TKPlayer valid_targets in
     let targeting_enemy = List.mem TKEnemy valid_targets in
     let targeting_hand = List.mem TKHand valid_targets in
+    let targeting_deck = List.mem TKDeck valid_targets in
+
+    (* draw deck *)
+    let deck_ui = DeckUI {box = {x=deck_x; y=deck_y; w=deck_w; h=deck_h}} in
+    let deck_cmd = 
+        match selected with
+            | Selection _ when is_valid_target_kind deck_ui valid_targets ->
+                DrawDeck {x=deck_x; y=deck_y; w=deck_w; h=deck_h; hil = true; size=List.length game.player.deck}
+            | _ ->
+                DrawDeck {x=deck_x; y=deck_y; w=deck_w; h=deck_h; hil = false; size=List.length game.player.deck}
+    in
+    draw_cmds := !draw_cmds @ [deck_cmd];
+    if targeting_deck then ui_elements := !ui_elements @ [deck_ui];
+
     (* draw hand *)
     let hand_w =
         match List.length game.player.hand with
@@ -304,6 +334,14 @@ let draw_hand x y w h hil =
     if hil then
         draw_rectangle x y w h Color.gold
 
+let draw_deck x y w h hil size = 
+    (if hil then
+        draw_rectangle x y w h Color.gold
+    else
+        draw_rectangle x y w h Color.darkgray);
+    draw_text (Printf.sprintf "%d" size) (x + 10) (y + 10) 20 Color.black
+    
+
 let draw_end_turn x y w h = 
     draw_rectangle x y w h Color.darkbrown;
     draw_text "End Turn" (x + 10) (y + 10) 20 Color.white
@@ -329,6 +367,8 @@ let draw_layout layout =
                 draw_enemy e.x e.y e.w e.h e.hil e.hp e.block e.act
             | DrawHand h ->
                 draw_hand h.x h.y h.w h.h h.hil
+            | DrawDeck d ->
+                draw_deck d.x d.y d.w d.h d.hil d.size
             | DrawEndTurn b ->
                 draw_end_turn b.x b.y b.w b.h
             | DrawManaBar m ->

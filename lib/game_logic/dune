@@ -1,0 +1,3 @@
+(library
+ (name game_logic)
+ (libraries core))

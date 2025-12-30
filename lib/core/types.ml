@@ -1,6 +1,10 @@
 module IntMap = Map.Make(Int)
 
-type game = {player : player; enemies : enemy IntMap.t}
+(* === game logic types === *)
+
+type end_state = Victory | Defeat | Ongoing
+
+type game = {player : player; enemies : enemy IntMap.t; end_state : end_state}
 
 and enemy = {hp : int; block : int; actions : action_type array; block_vals : int array; selected_action : action_type}
 
@@ -17,7 +21,6 @@ and action_type =
     | Attack of int * int
     | Block of int
     | Modifier of modifier_type 
-    (* TODO template type? *)
 (* modifiers can only target cards *)
 and modifier_type = 
     | PowInc of int
@@ -27,3 +30,5 @@ and action = game -> target -> game
 
 (* potential targets of an action *)
 and target = Player | Enemy of int | Card of card | Hand | Deck
+
+type target_kind = TKPlayer | TKEnemy | TKCard | TKHand | TKDeck

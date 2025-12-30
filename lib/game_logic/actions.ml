@@ -1,4 +1,4 @@
-open Types
+open Core.Types
 
 (* TODO should eventually separate actions into their own files and aggregate here *)
 
@@ -68,18 +68,22 @@ let incr_card_power power card =
                 | PowInc p -> {card with action_type = Modifier (PowInc (p+power))}
                 | Map (a, t) -> {card with action_type = Modifier (Map (a, t+power))}
 
-let replace_card (new_card : card) (hand : hand) : hand = 
-    List.map (fun current_element ->
-        if current_element.id = new_card.id then new_card else current_element
-    ) hand
+(* TODO inefficient and sketchy to do the mapping on hand and deck relying on card id *)
+let replace_card (new_card : card) (game : game )= 
+    let replace cards = 
+        List.map (fun current_element ->
+            if current_element.id = new_card.id then new_card else current_element
+        ) cards
+    in
+    let new_hand = replace game.player.hand in
+    let new_deck = replace game.player.deck in
+    {game with player = {game.player with hand = new_hand; deck = new_deck}}
 
 let incr_power power game target = 
     match target with
         | Card c ->
             let new_card = incr_card_power power c in
-            let new_hand = replace_card new_card game.player.hand in
-            let new_player = {game.player with hand = new_hand} in
-            {game with player = new_player}
+            replace_card new_card game
         | _ -> failwith "Can only increase power of a card."
 
 (* Map a card modifying action to hand or deck 'times' amount of times. *)
@@ -101,7 +105,10 @@ let rec map_modifier (mod_action : action) times game (cards : target) =
     in
     map_modifier mod_action (times - 1) new_game cards
 
-(* Instantiate an action from an action_type. *)
+(* Instantiate an action from an action_type. To create a new action you have to
+   write a function determining what the action does, create an action_type to
+   represent it, and then add a new case to this function to map from the
+   action_type to the function call. *)
 let rec instantiate_action action_type = 
     match action_type with
         | Attack (d, t) -> attack_multiple d t

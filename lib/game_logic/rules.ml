@@ -1,4 +1,4 @@
-open Types
+open Core.Types
 open Actions
 
 (* TODO organize this into individual files for related utilities and aggregate here *)
@@ -39,12 +39,12 @@ let enemy_pick_block (enemy : enemy) =
     pick_rand_element enemy.block_vals
 
 (* helper to set the player's mana *)
-let set_mana (game : game) new_mana =
+let set_mana new_mana (game : game) =
     let new_player = {game.player with mana = new_mana} in
     {game with player = new_player}
 
 (* helper to set the block of a player or enemy *)
-let set_block (game : game) new_block target = 
+let set_block new_block target (game : game) = 
     match target with
         | Player ->
             let new_player = {game.player with block = new_block} in
@@ -56,19 +56,15 @@ let set_block (game : game) new_block target =
             failwith "Can only set block of player or enemy." 
 
 (* TODO should this be involved in discarding? *)
-(* TODO incorrectly reorders hand *)
 (* removes a specific card from the player's hand, return the new hand *)
-let remove_from_hand (c : card) (h : hand) = 
-    let rec _remove c h (acc : hand) = 
-        match h with
-            | [] -> acc
-            | x::xs -> 
-                if x.id = c.id then
-                    acc@xs
-                else
-                    _remove c xs acc@[x]
-    in
-    _remove c h []
+let rec remove_from_hand (c : card) (h : hand) = 
+    match h with
+    | [] -> []
+    | x :: xs ->
+        if x.id = c.id then
+        xs
+        else
+        x :: remove_from_hand c xs
 
 (* applies a card (the card's action) to the specified target *)
 let apply_card (c : card) (t : target) (g : game) = 
@@ -85,7 +81,7 @@ let take_top_deck (d : deck) =
         | x::xs -> (Some x, xs)
 
 (* draws the specified number of cards from the deck, returns a new game state *)
-let rec draw_cards (game : game) num_cards = 
+let rec draw_cards num_cards (game : game) = 
     if num_cards = 0 then game else
     let top_card = take_top_deck game.player.deck in
     match top_card with
@@ -96,7 +92,7 @@ let rec draw_cards (game : game) num_cards =
                             deck = new_d}
             in
             let new_game = {game with player = new_p} in
-            draw_cards new_game (num_cards - 1)
+            draw_cards (num_cards - 1) new_game
 
 (* Removes all dead enemies (hp <= 0) from the game *)
 let remove_dead_enemies (game : game)=
@@ -106,3 +102,43 @@ let remove_dead_enemies (game : game)=
             game.enemies
     in
     { game with enemies = alive_enemies }
+
+(* set the block for each enemy *)
+let set_enemies_block (game : game) = 
+    let new_enemies = IntMap.map (fun e -> ({e with block = enemy_pick_block e} : enemy)) game.enemies in
+    {game with enemies = new_enemies}
+
+(* get the target kinds of an action type *)
+let get_target_kinds action_type = 
+    match action_type with
+        | Attack _ -> [TKEnemy]
+        | Block _ -> [TKPlayer]
+        | Modifier m ->
+            match m with
+                | PowInc _ -> [TKCard]
+                | Map _ -> [TKHand; TKDeck]
+
+let set_end_state (game : game) = 
+    if game.player.hp <= 0 then 
+        {game with end_state = Defeat}
+    else if IntMap.is_empty game.enemies then 
+        {game with end_state = Victory}
+    else 
+        game
+
+(* steps to do after every action *)
+let post_action_check (game : game) = 
+    game
+    |> remove_dead_enemies
+    |> set_end_state
+    
+(* do all the between-turn steps *)
+let pre_turn_processing (game : game) = 
+    game
+    |> remove_dead_enemies
+    |> select_enemy_actions
+    |> (draw_cards 1)
+    |> set_enemies_block
+    |> (set_block 0 Player)
+    |> (set_mana game.player.mana_cap)
+    |> set_end_state

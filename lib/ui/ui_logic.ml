@@ -227,13 +227,14 @@ let gen_enemies game selected valid_targets layout =
     (* TODO is there a pure way to do this and is it worth doing it that way? *)
     let gen_enemy_cmd id _ = 
         let enemy = IntMap.find id game.enemies in
-        let enemy_ui = EnemyUI {id=id; box = {x=enemy_x; y=enemy_y; w=enemy_w; h=enemy_h}} in
+        let y = enemy_y_spacing id in
+        let enemy_ui = EnemyUI {id=id; box = {x=enemy_x; y=y; w=enemy_w; h=enemy_h}} in
         let enemy_cmd =
             match selected with
                 | Selection _ when is_valid_target_kind enemy_ui valid_targets ->
-                    DrawEnemy {x=enemy_x; y=enemy_y; w=enemy_w; h=enemy_h; hil=true; hp=enemy.hp; block=enemy.block; act=enemy.selected_action}
+                    DrawEnemy {x=enemy_x; y=y; w=enemy_w; h=enemy_h; hil=true; hp=enemy.hp; block=enemy.block; act=enemy.selected_action}
                 | _ ->
-                    DrawEnemy {x=enemy_x; y=enemy_y; w=enemy_w; h=enemy_h; hil=false; hp=enemy.hp; block=enemy.block; act=enemy.selected_action}
+                    DrawEnemy {x=enemy_x; y=y; w=enemy_w; h=enemy_h; hil=false; hp=enemy.hp; block=enemy.block; act=enemy.selected_action}
         in
         draw_cmds := !draw_cmds @ [enemy_cmd];
         if targeting_enemy then ui_elements := !ui_elements @ [enemy_ui]

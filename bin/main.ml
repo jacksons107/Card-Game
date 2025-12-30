@@ -4,4 +4,4 @@ open Card_game.Game
 
 
 let () = 
-    run_battle player_simple [enemy_simple]
+    run_battle player_simple [enemy_simple; enemy_simple]

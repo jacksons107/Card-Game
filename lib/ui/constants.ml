@@ -15,7 +15,9 @@ let player_y = 250
 let enemy_w = 120
 let enemy_h = 120
 let enemy_x = 1100
-let enemy_y = 250
+let enemy_y = 150
+
+let enemy_y_spacing i = (enemy_y + 50) + i * 140
 
 (* constants for drawing end turn button *)
 let end_turn_x = 1000

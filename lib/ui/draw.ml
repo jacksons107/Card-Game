@@ -2,6 +2,45 @@ open Ui_types
 open String_utils
 open Raylib
 
+
+let wrap_text ~font ~font_size ~spacing ~text ~max_width =
+    let words = String.split_on_char ' ' text in
+    let measure s =
+        Vector2.x (measure_text_ex font s font_size spacing)
+    in
+    let rec build_lines words current_line acc =
+        match words with
+        | [] ->
+            List.rev (current_line :: acc)
+        | w :: ws ->
+            let candidate =
+            if current_line = "" then w else current_line ^ " " ^ w
+            in
+            if measure candidate <= max_width then
+            build_lines ws candidate acc
+            else
+            build_lines ws w (current_line :: acc)
+    in
+    match words with
+    | [] -> []
+    | w :: ws -> build_lines ws w []
+
+let draw_wrapped_text ~font ~font_size ~spacing ~x ~y ~w ~h ~color text =
+    let line_height = font_size +. spacing in
+    let max_lines = h / int_of_float line_height in
+    wrap_text ~font ~font_size ~spacing ~text ~max_width:(float_of_int w)
+    |> List.take max_lines
+    |> List.iteri (fun i line ->
+        draw_text_ex
+            font
+            line
+            (Vector2.create
+                (float_of_int x)
+                (float_of_int y +. float_of_int i *. line_height))
+            font_size
+            spacing
+            color)
+
 let draw_card x y w h sel hil cost act =
     (if sel then
         draw_rectangle x y w h Color.green
@@ -12,7 +51,20 @@ let draw_card x y w h sel hil cost act =
     draw_rectangle_lines x y w h Color.darkgray;
     draw_text (string_of_int cost) (x + 100) (y + 10) 20 Color.blue;
     let action_string = string_of_action_type act in
-    draw_text action_string (x + 15) (y + h/2) 5 Color.black
+    (* draw_text action_string (x + 15) (y + h/2) 5 Color.black *)
+    let font = get_font_default () in
+    let font_size = 12. in
+    let spacing = 1. in
+    draw_wrapped_text
+        ~font
+        ~font_size
+        ~spacing
+        ~x:(x + 10)
+        ~y:(y + 30)
+        ~w:(w - 20)
+        ~h:(h - 40)
+        ~color:Color.black
+        action_string
 
 let draw_player x y w h hil hp block = 
     (if hil then

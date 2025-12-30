@@ -1,4 +1,4 @@
-open Types
+open Core.Types
 
 (* A simple enemy *)
 let enemy_simple = {hp = 10;  

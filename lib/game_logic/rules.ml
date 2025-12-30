@@ -1,4 +1,4 @@
-open Types
+open Core.Types
 open Actions
 
 (* TODO organize this into individual files for related utilities and aggregate here *)

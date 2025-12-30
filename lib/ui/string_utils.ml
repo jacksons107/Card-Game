@@ -1,4 +1,4 @@
-open Types
+open Core.Types
 
 let rec string_of_action_type a_type = 
     match a_type with

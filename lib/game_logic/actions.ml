@@ -1,4 +1,4 @@
-open Types
+open Core.Types
 
 (* TODO should eventually separate actions into their own files and aggregate here *)
 

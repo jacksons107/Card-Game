@@ -1,4 +1,4 @@
-open Types
+open Core.Types
 
 let attack_2_card = {id = 0; cost = 1; action_type = Attack (2, 2)}
 let block_3_card = {id = 1; cost = 2; action_type = Block 3}

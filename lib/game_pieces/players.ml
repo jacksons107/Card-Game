@@ -1,4 +1,4 @@
-open Types
+open Core.Types
 open Cards
 
 (* A simple player *)

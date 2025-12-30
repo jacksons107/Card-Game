@@ -128,30 +128,7 @@ let is_valid_target_kind ui_type target_kinds =
                 | _ -> false)
         target_kinds
 
-(* TODO refactor this into multiple functions *)
-let gen_layout game_state = 
-    let draw_cmds = ref [] in
-    let ui_elements = ref [] in
-    let game = game_state.game in
-    let selected = game_state.selected in
-    let valid_targets = 
-        match selected with
-            | Selection c -> get_target_kinds c.action_type
-            | NoSelection -> []
-    in
-    (* indicates if a card is selected *)
-    let is_selection = 
-        match selected with
-            | Selection _ -> true
-            | NoSelection -> false
-    in
-    (* TODO might be a better way to determine toggling of these variables *)
-    let targeting_player = List.mem TKPlayer valid_targets in
-    let targeting_enemy = List.mem TKEnemy valid_targets in
-    let targeting_hand = List.mem TKHand valid_targets in
-    let targeting_deck = List.mem TKDeck valid_targets in
-
-    (* draw deck *)
+let gen_deck game selected valid_targets layout = 
     let deck_ui = DeckUI {box = {x=deck_x; y=deck_y; w=deck_w; h=deck_h}} in
     let deck_cmd = 
         match selected with
@@ -160,10 +137,15 @@ let gen_layout game_state =
             | _ ->
                 DrawDeck {x=deck_x; y=deck_y; w=deck_w; h=deck_h; hil = false; size=List.length game.player.deck}
     in
-    draw_cmds := !draw_cmds @ [deck_cmd];
-    if targeting_deck then ui_elements := !ui_elements @ [deck_ui];
+    let new_cmds = layout.draw_cmds @ [deck_cmd] in
+    let targeting_deck = List.mem TKDeck valid_targets in
+    if targeting_deck then
+        let new_ui = layout.ui_elements @ [deck_ui] in
+        {draw_cmds = new_cmds; ui_elements = new_ui}
+    else
+        {layout with draw_cmds = new_cmds}
 
-    (* draw hand *)
+let gen_hand game selected valid_targets layout = 
     let hand_w =
         match List.length game.player.hand with
         | 0 -> 0
@@ -171,7 +153,7 @@ let gen_layout game_state =
             let last_card_x = hand_x_spacing (n - 1) in
             (last_card_x + card_w + 50) - hand_x
     in
-    (* TODO should have the box is these situations be a variable to keep the ui element and the draw command coupled *)
+    (* TODO should have the box in these situations be a variable to keep the ui element and the draw command coupled *)
     let hand_ui = HandUI {box = {x=hand_x; y=hand_y - 25; w=hand_w; h=card_h + 50}} in
     let hand_cmd = 
         match selected with
@@ -180,16 +162,24 @@ let gen_layout game_state =
             | _ ->
                 DrawHand {x=hand_x; y=hand_y; w=hand_w; h=card_h + 50; hil=false}
     in
-    draw_cmds := !draw_cmds @ [hand_cmd];
-    (* only add the hand ui element if the selected card is targeting the hand *)
-    if targeting_hand then ui_elements := !ui_elements @ [hand_ui];
+    let new_cmds = layout.draw_cmds @ [hand_cmd] in
+    let targeting_hand = List.mem TKHand valid_targets in
+    if targeting_hand then
+        let new_ui = layout.ui_elements @ [hand_ui] in
+        {draw_cmds = new_cmds; ui_elements = new_ui}
+    else
+        {layout with draw_cmds = new_cmds}
 
-    (* draw cards *)
-    let gen_card_cmd i card =
+let gen_cards game selected valid_targets layout =
+    let ui_elements = ref layout.ui_elements in
+    let draw_cmds = ref layout.draw_cmds in
+    (* TODO is there a pure way to do this and is it worth doing it that way? *)
+    let _gen_cards i card =
         let x = hand_x_spacing i in
         let y = hand_y in
         let card_ui = CardUI {card = card; box = {x=x; y=y; w=card_w; h=card_h}} in
         (* TODO can probably refactor this logic better since selected is matched against twice *)
+        let targeting_hand = List.mem TKHand valid_targets in
         let is_selected_card =
         match selected with
             | Selection c when c.id = card.id -> true
@@ -209,10 +199,11 @@ let gen_layout game_state =
                 draw_cmds :=  !draw_cmds @ [DrawCard {x=x; y=y; w=card_w; h=card_h; sel = false; hil = false; cost = card.cost; act = card.action_type}]
     in
     (* draw each card in hand *)
-    List.iteri gen_card_cmd game.player.hand;
+    List.iteri _gen_cards game.player.hand;
+    {draw_cmds = !draw_cmds; ui_elements = !ui_elements}
 
-    (* draw player *)
-    let player = game_state.game.player in
+let gen_player game selected valid_targets layout = 
+    let player = game.player in
     let player_ui = PlayerUI {player=player; box = {x=player_x; y=player_y; w=player_w; h=player_h}} in
     let player_cmd =
         match selected with
@@ -221,10 +212,19 @@ let gen_layout game_state =
             | _ -> 
                 DrawPlayer {x=player_x; y=player_y; w=player_w; h=player_h; hil=false ;hp=player.hp; block=player.block}
     in
-    draw_cmds := !draw_cmds @ [player_cmd];
-    if targeting_player then ui_elements := !ui_elements @ [player_ui];
+    let new_cmds = layout.draw_cmds @ [player_cmd] in
+    let targeting_player = List.mem TKPlayer valid_targets in
+    if targeting_player then
+        let new_ui = layout.ui_elements @ [player_ui] in
+        {draw_cmds = new_cmds; ui_elements = new_ui}
+    else
+        {layout with draw_cmds = new_cmds}
 
-    (* draw enemies *)
+let gen_enemies game selected valid_targets layout = 
+    let draw_cmds = ref layout.draw_cmds in
+    let ui_elements = ref layout.ui_elements in
+    let targeting_enemy = List.mem TKEnemy valid_targets in
+    (* TODO is there a pure way to do this and is it worth doing it that way? *)
     let gen_enemy_cmd id _ = 
         let enemy = IntMap.find id game.enemies in
         let enemy_ui = EnemyUI {id=id; box = {x=enemy_x; y=enemy_y; w=enemy_w; h=enemy_h}} in
@@ -240,21 +240,57 @@ let gen_layout game_state =
     in
     (* draw each enemy *)
     IntMap.iter gen_enemy_cmd game.enemies;
+    {draw_cmds = !draw_cmds; ui_elements = !ui_elements}
 
-    (* draw mana bar *)
-    draw_cmds := !draw_cmds @ [DrawManaBar {x=mana_bar_x; y=mana_bar_y; w=mana_bar_w; h=mana_bar_h; remain=game.player.mana; cap=game.player.mana_cap}];
+let gen_mana_bar game layout = 
+    let new_cmds = layout.draw_cmds @ [DrawManaBar {x=mana_bar_x; 
+                                                    y=mana_bar_y; 
+                                                    w=mana_bar_w; 
+                                                    h=mana_bar_h; 
+                                                    remain=game.player.mana; 
+                                                    cap=game.player.mana_cap}]
+    in  
+    {layout with draw_cmds = new_cmds}
 
-    (* draw end turn button *)
+let gen_end_turn selected layout = 
+    let is_selection = 
+        match selected with
+            | Selection _ -> true
+            | NoSelection -> false
+    in
     let end_turn_cmd = DrawEndTurn {x=end_turn_x; y=end_turn_y; w=end_turn_w; h=end_turn_h} in
     let end_turn_ui = EndTurnUI {box = {x=end_turn_x; y=end_turn_y; w=end_turn_w; h=end_turn_h}} in
-    draw_cmds := !draw_cmds @ [end_turn_cmd];
+    let new_cmds = layout.draw_cmds @ [end_turn_cmd] in
     (* disable end turn button if a card is selected *)
-    if not is_selection then ui_elements := !ui_elements @ [end_turn_ui];
+    if not is_selection then
+        let new_ui = layout.ui_elements @ [end_turn_ui] in
+        {draw_cmds = new_cmds; ui_elements = new_ui}
+    else
+        {layout with draw_cmds = new_cmds}
 
-    (* draw victory or defeat screens *)
-    (match game.end_state with
-        | Victory -> draw_cmds := !draw_cmds @ [DrawVictoryScreen {x=end_message_x; y=end_message_y}]
-        | Defeat -> draw_cmds := !draw_cmds @ [DrawDefeatScreen {x=end_message_x; y=end_message_y}]
-        | Ongoing -> ());
+let gen_end_state game layout = 
+    match game.end_state with
+        | Victory -> 
+            {layout with draw_cmds = layout.draw_cmds @ [DrawVictoryScreen {x=end_message_x; y=end_message_y}]}
+        | Defeat -> 
+            {layout with draw_cmds = layout.draw_cmds @ [DrawDefeatScreen {x=end_message_x; y=end_message_y}]}
+        | Ongoing -> 
+            layout
 
-    {draw_cmds = !draw_cmds; ui_elements = !ui_elements}
+let gen_layout game_state = 
+    let game = game_state.game in
+    let selected = game_state.selected in
+    let valid_targets = 
+        match selected with
+            | Selection c -> get_target_kinds c.action_type
+            | NoSelection -> []
+    in
+    {draw_cmds = []; ui_elements = []}
+    |> gen_deck game selected valid_targets
+    |> gen_hand game selected valid_targets
+    |> gen_cards game selected valid_targets
+    |> gen_player game selected valid_targets
+    |> gen_enemies game selected valid_targets
+    |> gen_mana_bar game
+    |> gen_end_turn selected
+    |> gen_end_state game

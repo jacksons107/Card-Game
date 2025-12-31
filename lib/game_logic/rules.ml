@@ -58,6 +58,7 @@ let set_block new_block target (game : game) =
 (* applies a card (the card's action) to the specified target *)
 let apply_card (c : card) (t : target) (g : game) = 
     (* TODO prevent spending to below 0 mana *)
+    if g.player.mana - c.cost < 0 then g else
     let new_mana = g.player.mana - c.cost in
     let new_hand = remove_from_hand c g.player.hand in
     let new_player = {g.player with mana = new_mana; hand = new_hand} in

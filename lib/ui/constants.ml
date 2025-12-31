@@ -40,7 +40,7 @@ let deck_h = 50
 (* constants for drawing target game button *)
 let game_button_x = 540
 let game_button_y = 360
-let game_button_w = 120
+let game_button_w = 160
 let game_button_h = 50
 
 (* constants for drawing end state screens *)

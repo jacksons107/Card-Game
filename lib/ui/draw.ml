@@ -51,7 +51,6 @@ let draw_card x y w h sel hil cost act =
     draw_rectangle_lines x y w h Color.darkgray;
     draw_text (string_of_int cost) (x + 100) (y + 10) 20 Color.blue;
     let action_string = string_of_action_type act in
-    (* draw_text action_string (x + 15) (y + h/2) 5 Color.black *)
     let font = get_font_default () in
     let font_size = 12. in
     let spacing = 1. in
@@ -60,7 +59,7 @@ let draw_card x y w h sel hil cost act =
         ~font_size
         ~spacing
         ~x:(x + 10)
-        ~y:(y + 30)
+        ~y:(y + 50)
         ~w:(w - 20)
         ~h:(h - 40)
         ~color:Color.black
@@ -82,7 +81,20 @@ let draw_enemy x y w h hil hp block act =
     draw_text (string_of_int hp) (x + 10) (y + 10) 20 Color.black;
     draw_text (string_of_int block) (x + w - 20) (y + 10) 20 Color.black;
     let action_string = string_of_action_type act in
-    draw_text action_string (x + 15) (y + h/2) 5 Color.black
+    (* draw_text action_string (x + 15) (y + h/2) 5 Color.black *)
+    let font = get_font_default () in
+    let font_size = 12. in
+    let spacing = 1. in
+    draw_wrapped_text
+        ~font
+        ~font_size
+        ~spacing
+        ~x:(x + 10)
+        ~y:(y + 50)
+        ~w:(w - 20)
+        ~h:(h - 40)
+        ~color:Color.black
+        action_string
 
 let draw_hand x y w h hil = 
     if hil then
@@ -99,6 +111,12 @@ let draw_deck x y w h hil size =
 let draw_end_turn x y w h = 
     draw_rectangle x y w h Color.darkbrown;
     draw_text "End Turn" (x + 10) (y + 10) 20 Color.white
+
+let draw_game_button x y w h hil = 
+    if hil then begin
+        draw_rectangle x y w h Color.gold;
+        draw_text "Target Game" (x + 10) (y + 10) 20 Color.black
+    end
 
 let draw_mana_bar x y w h remain cap = 
     draw_rectangle x y w h Color.blue;
@@ -125,6 +143,8 @@ let draw_layout layout =
                 draw_deck d.x d.y d.w d.h d.hil d.size
             | DrawEndTurn b ->
                 draw_end_turn b.x b.y b.w b.h
+            | DrawGameButton g ->
+                draw_game_button g.x g.y g.w g.h g.hil
             | DrawManaBar m ->
                 draw_mana_bar m.x m.y m.w m.h m.remain m.cap
             | DrawVictoryScreen s ->

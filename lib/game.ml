@@ -12,12 +12,40 @@ let init_enemies (enemies : enemy list) =
         enemies);
     !enemy_map
 
-let run_battle (player : player) (enemies : enemy list) = 
+let init_card (card_temp : card_template) (game : game) =
+    let id, new_game = Game_logic.Actions.fresh_card_id game in
+    let card = {id = id; cost = card_temp.cost; action_type = card_temp.action_type} in
+    (card, new_game)
+    
+(* turn list of card templates into list of cards, then set that as player's deck and return new game *)
+let init_deck templates game =
+    let deck, new_game = 
+        List.fold_left
+            (fun (cards, game) tpl ->
+            let (card, new_game) = init_card tpl game in
+            (card :: cards, new_game))
+            ([], game)
+            templates
+    in
+    let new_player = {new_game.player with deck = List.rev deck} in
+    {new_game with player = new_player}
+
+(* draw num cards from deck to create initial hand *)
+let init_hand num game = 
+    draw_cards num game
+
+let run_battle (player : player) (deck_tpl : card_template list) (enemies : enemy list) = 
     (* initialize game starting state *)
     Random.self_init ();
     let enemy_map = init_enemies enemies in
-    let game_simple = {player = player; enemies = enemy_map; end_state = Ongoing} in
-    let og_game_state = {game = pre_turn_processing game_simple; selected = NoSelection} in
+    let game_simple = {player = player; enemies = enemy_map; end_state = Ongoing; 
+                       timeline = [||]; time_idx = 0; next_card_id = 0} in
+    (* let deck_game = init_deck game_simple deck_tpl in
+    let hand_game = init_hand deck_game in *)
+    let inited_game = 
+        game_simple |> (init_deck deck_tpl) |> (init_hand 2)
+    in
+    let og_game_state = {game = pre_turn_processing inited_game; selected = NoSelection} in
     let og_layout = gen_layout og_game_state in
 
     (* initialize window *)

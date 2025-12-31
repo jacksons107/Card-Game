@@ -17,6 +17,27 @@ let update_enemy_block new_block (enemy_opt : enemy option) =
 let rec apply_x_times (action : action) x game target = 
     if x = 0 then game else apply_x_times action (x-1) (action game target) target
 
+(* TODO should this be involved in discarding? *)
+(* general helper to remove a specific card from the player's hand, return the new hand *)
+let rec remove_from_hand (c : card) (h : hand) = 
+    match h with
+    | [] -> []
+    | x :: xs ->
+        if x.id = c.id then
+        xs
+        else
+        x :: remove_from_hand c xs
+
+(* helper to generate a fresh card id, returns id and new game *)
+let fresh_card_id (game : game) =
+    let id = game.next_card_id in
+    (id, {game with next_card_id = id + 1})
+
+(* clone a card and give it a new id, returns the new card and new game *)
+let clone_card (card : card) (game : game) = 
+    let id = game.next_card_id in
+    ({card with id = id}, {game with next_card_id = id + 1})
+
 (* --- Attack action builders --- *)
 let attack damage game target = 
     let apply_attack damage hp block = 
@@ -43,6 +64,7 @@ let attack_multiple damage times =
     let attack_d = attack damage in 
     ((apply_x_times attack_d times) : action)
 
+
 (* --- Block action builders --- *)
 let block block game target = 
     match target with
@@ -58,15 +80,20 @@ let block block game target =
         | _ ->
             failwith "Cannot add block to cards."
 
+
 (* --- Card modifying action builders --- *)
-let incr_card_power power card = 
+let incr_card_power power (card : card) = 
     match card.action_type with
         | Attack (d, t) -> {card with action_type = Attack (d+power, t)}
         | Block b -> {card with action_type = Block (b+power)}
         | Modifier m ->
-            match m with
+            (match m with
                 | PowInc p -> {card with action_type = Modifier (PowInc (p+power))}
                 | Map (a, t) -> {card with action_type = Modifier (Map (a, t+power))}
+                | BackTemplate (t, c) -> {card with action_type = Modifier (BackTemplate (t+power, c))})
+        | Time t ->
+            (match t with
+                | Backward (c, t) -> {card with action_type = Time (Backward (c, t+power))})
 
 (* TODO inefficient and sketchy to do the mapping on hand and deck relying on card id *)
 let replace_card (new_card : card) (game : game )= 
@@ -105,6 +132,44 @@ let rec map_modifier (mod_action : action) times game (cards : target) =
     in
     map_modifier mod_action (times - 1) new_game cards
 
+
+(* --- Time travelling actions --- *)
+
+(* template for a card that travels back t turns in time, costs cost, and brings card target with it *)
+let back_template t cost (game : game) (target : target) = 
+    match target with
+        | Card c ->
+            let cloned_card, cloned_game = clone_card c game in
+            let id, new_game = fresh_card_id cloned_game in
+            let new_card = {id = id; cost = cost; action_type = Time (Backward (cloned_card, t))} in
+            let new_hand = remove_from_hand c game.player.hand in
+            {new_game with player = {game.player with hand = new_card :: new_hand}}
+        | _ ->
+            failwith "Can only target a card with time template."
+
+(* TODO how to handle case when they want to travel to a non existent index? *)
+(* travel backwards in time by x, if that entry exists, and restore game state with card also in hand,
+   overwrite entrie's timeline, time_idx, and next_card_id with most recent  *)
+let travel_back card j (game : game) (target : target) =
+    match target with
+        | Game ->
+            let len = Array.length game.timeline in
+            let new_idx = game.time_idx - j in
+            if new_idx >= 0 && new_idx < len then
+                let new_timeline = game.timeline in
+                let new_next_id = game.next_card_id in
+                let new_game = Array.get game.timeline new_idx in
+                let new_hand = card :: new_game.player.hand in
+                {new_game with 
+                    player = {new_game.player with hand = new_hand};
+                    timeline = new_timeline; 
+                    time_idx = new_idx;
+                    next_card_id = new_next_id}
+            else
+                failwith "Trying to time travel (back) to non existent index."
+        | _ ->
+            failwith "Can only apply travel_back to game target."
+
 (* Instantiate an action from an action_type. To create a new action you have to
    write a function determining what the action does, create an action_type to
    represent it, and then add a new case to this function to map from the
@@ -114,9 +179,14 @@ let rec instantiate_action action_type =
         | Attack (d, t) -> attack_multiple d t
         | Block b -> block b
         | Modifier m ->
-            match m with
+            (match m with
                 | PowInc p -> incr_power p
                 | Map (a, t) -> map_modifier (instantiate_action (Modifier a)) t
+                (* TODO right now just making all template generated cards free with id 69*)
+                | BackTemplate (t, c) -> back_template t c)
+        | Time t ->
+            (match t with
+                | Backward (c, j) -> travel_back c j)
 
 
 (* ======= Example actions ========= *)

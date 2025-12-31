@@ -8,7 +8,7 @@ let rec string_of_action_type a_type =
             (match m with
             | PowInc p -> Printf.sprintf "Increase power %d" p
             | Map (a, t) -> Printf.sprintf "Map [%s] %d times" (string_of_action_type (Modifier a)) t
-            | BackTemplate t -> Printf.sprintf "Template to travel back %d turns" t)
+            | BackTemplate (t, c) -> Printf.sprintf "Template to travel back %d turns at %d cost" t c)
         | Time t ->
             (match t with
                 | Backward (c, j) -> Printf.sprintf "Travelling back %d with card id %d" j c.id)

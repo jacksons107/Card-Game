@@ -16,6 +16,7 @@ type interaction =
     | ClickEnemy of int
     | ClickHand
     | ClickDeck
+    | ClickGame
     | ClickEndTurn
     | ClickNothing
 
@@ -27,6 +28,7 @@ type event =
     | TargetCard of card * card
     | TargetHand of card
     | TargetDeck of card
+    | TargetGame of card
     | Unselect
     | EndTurn
 
@@ -42,6 +44,7 @@ type ui_element =
     | EnemyUI of {id : int; box : hitbox}
     | HandUI of {box : hitbox}
     | DeckUI of {box : hitbox}
+    | GameButtonUI of {box : hitbox}
     | EndTurnUI of {box : hitbox}
 
 type draw_cmd = 
@@ -52,6 +55,7 @@ type draw_cmd =
     | DrawEndTurn of {x : int; y : int; w : int; h : int}
     | DrawManaBar of {x : int; y : int; w : int; h : int; remain : int; cap : int}
     | DrawDeck of {x : int; y : int; w : int; h : int; hil : bool; size : int}
+    | DrawGameButton of {x : int; y : int; w : int; h : int; hil : bool}
     | DrawVictoryScreen of {x : int; y : int}
     | DrawDefeatScreen of {x : int; y : int}
 

@@ -39,6 +39,9 @@ let collect_interactions (layout : ui_layout) =
             | EndTurnUI b when hit b.box ->
                 hit_something := true;
                 if pressed then interactions := ClickEndTurn :: !interactions
+            | GameButtonUI b when  hit b.box ->
+                hit_something := true;
+                if pressed then interactions := ClickGame :: !interactions
             | _ -> ()
 
     in
@@ -77,6 +80,10 @@ let interpret_interactions interactions game =
                     | NoSelection -> acc)
             | ClickEndTurn ->
                 EndTurn :: acc
+            | ClickGame ->
+                (match game.selected with
+                    | Selection c -> TargetGame c :: acc
+                    | NoSelection -> acc)
             | ClickNothing ->
                 (match game.selected with
                     | Selection _ -> Unselect :: acc
@@ -101,6 +108,8 @@ let event_handler events game_state =
                 {game = apply_card c Hand state.game; selected = NoSelection}
             | TargetDeck c ->
                 {game = apply_card c Deck state.game; selected = NoSelection}
+            | TargetGame c ->
+                {game = apply_card c Game state.game; selected = NoSelection}
             | EndTurn ->
                 let new_game = pre_turn_processing (apply_enemy_actions state.game (get_enemy_actions state.game)) in
                 {game = new_game; selected = NoSelection} 
@@ -125,6 +134,7 @@ let is_valid_target_kind ui_type target_kinds =
                 | CardUI _, TKCard -> true
                 | HandUI _, TKHand -> true
                 | DeckUI _, TKDeck -> true
+                | GameButtonUI _, TKGame -> true
                 | _ -> false)
         target_kinds
 
@@ -269,6 +279,24 @@ let gen_end_turn selected layout =
     else
         {layout with draw_cmds = new_cmds}
 
+let gen_game_button selected valid_targets layout = 
+    let button_ui = GameButtonUI {box = {x=game_button_x; y=game_button_y; w=game_button_w; h=game_button_h}} in
+    let button_cmd = 
+        match selected with
+            | Selection _ when is_valid_target_kind button_ui valid_targets ->
+                DrawGameButton {x=game_button_x; y=game_button_y; w=game_button_w; h=game_button_h; hil=true}
+            | _ ->
+                DrawGameButton {x=game_button_x; y=game_button_y; w=game_button_w; h=game_button_h; hil=false}
+    in
+    let new_cmds = layout.draw_cmds @ [button_cmd] in
+    (* TODO this condition is the same as is_valid_target_kind right? *)
+    let targeting_game = List.mem TKGame valid_targets in
+    if targeting_game then
+        let new_ui = layout.ui_elements @ [button_ui] in
+        {draw_cmds = new_cmds; ui_elements = new_ui}
+    else
+        {layout with draw_cmds = new_cmds}
+
 let gen_end_state game layout = 
     match game.end_state with
         | Victory -> 
@@ -294,4 +322,5 @@ let gen_layout game_state =
     |> gen_enemies game selected valid_targets
     |> gen_mana_bar game
     |> gen_end_turn selected
+    |> gen_game_button selected valid_targets 
     |> gen_end_state game

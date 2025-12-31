@@ -16,7 +16,7 @@ let run_battle (player : player) (enemies : enemy list) =
     (* initialize game starting state *)
     Random.self_init ();
     let enemy_map = init_enemies enemies in
-    let game_simple = {player = player; enemies = enemy_map; end_state = Ongoing} in
+    let game_simple = {player = player; enemies = enemy_map; end_state = Ongoing; timeline = [||]; time_idx = 0} in
     let og_game_state = {game = pre_turn_processing game_simple; selected = NoSelection} in
     let og_layout = gen_layout og_game_state in
 

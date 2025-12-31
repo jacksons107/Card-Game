@@ -55,19 +55,9 @@ let set_block new_block target (game : game) =
         | _ -> 
             failwith "Can only set block of player or enemy." 
 
-(* TODO should this be involved in discarding? *)
-(* removes a specific card from the player's hand, return the new hand *)
-let rec remove_from_hand (c : card) (h : hand) = 
-    match h with
-    | [] -> []
-    | x :: xs ->
-        if x.id = c.id then
-        xs
-        else
-        x :: remove_from_hand c xs
-
 (* applies a card (the card's action) to the specified target *)
 let apply_card (c : card) (t : target) (g : game) = 
+    (* TODO prevent spending to below 0 mana *)
     let new_mana = g.player.mana - c.cost in
     let new_hand = remove_from_hand c g.player.hand in
     let new_player = {g.player with mana = new_mana; hand = new_hand} in
@@ -114,9 +104,13 @@ let get_target_kinds action_type =
         | Attack _ -> [TKEnemy]
         | Block _ -> [TKPlayer]
         | Modifier m ->
-            match m with
+            (match m with
                 | PowInc _ -> [TKCard]
                 | Map _ -> [TKHand; TKDeck]
+                | BackTemplate _ -> [TKCard])
+        | Time t ->
+            (match t with
+                | Backward _ -> [TKGame])
 
 let set_end_state (game : game) = 
     if game.player.hp <= 0 then 
@@ -126,11 +120,30 @@ let set_end_state (game : game) =
     else 
         game
 
+let save_game (game : game) =
+    let new_idx = game.time_idx + 1 in
+    let len = Array.length game.timeline in
+
+    if new_idx < len then begin
+        (* overwrite existing future state *)
+        game.timeline.(new_idx) <- game;
+        { game with time_idx = new_idx }
+    end else begin
+        (* append new state *)
+        let new_timeline = Array.append game.timeline [| game |] in
+        { game with
+        timeline = new_timeline;
+        time_idx = new_idx
+        }
+    end    
+
+   
 (* steps to do after every action *)
 let post_action_check (game : game) = 
     game
     |> remove_dead_enemies
     |> set_end_state
+
     
 (* do all the between-turn steps *)
 let pre_turn_processing (game : game) = 
@@ -142,3 +155,4 @@ let pre_turn_processing (game : game) =
     |> (set_block 0 Player)
     |> (set_mana game.player.mana_cap)
     |> set_end_state
+    |> save_game

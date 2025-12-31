@@ -100,6 +100,12 @@ let draw_end_turn x y w h =
     draw_rectangle x y w h Color.darkbrown;
     draw_text "End Turn" (x + 10) (y + 10) 20 Color.white
 
+let draw_game_button x y w h hil = 
+    if hil then begin
+        draw_rectangle x y w h Color.gold;
+        draw_text "Target Game" (x + 10) (y + 10) 20 Color.white
+    end
+
 let draw_mana_bar x y w h remain cap = 
     draw_rectangle x y w h Color.blue;
     draw_text (Printf.sprintf "%d / %d" remain cap) (x + 10) (y + 10) 20 Color.white
@@ -125,6 +131,8 @@ let draw_layout layout =
                 draw_deck d.x d.y d.w d.h d.hil d.size
             | DrawEndTurn b ->
                 draw_end_turn b.x b.y b.w b.h
+            | DrawGameButton g ->
+                draw_game_button g.x g.y g.w g.h g.hil
             | DrawManaBar m ->
                 draw_mana_bar m.x m.y m.w m.h m.remain m.cap
             | DrawVictoryScreen s ->

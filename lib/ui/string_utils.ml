@@ -5,9 +5,13 @@ let rec string_of_action_type a_type =
         | Attack (d, t) -> Printf.sprintf "Attack %d damage, %d times" d t
         | Block b -> Printf.sprintf "Block %d" b
         | Modifier m ->
-            match m with
+            (match m with
             | PowInc p -> Printf.sprintf "Increase power %d" p
             | Map (a, t) -> Printf.sprintf "Map [%s] %d times" (string_of_action_type (Modifier a)) t
+            | BackTemplate t -> Printf.sprintf "Template to travel back %d turns" t)
+        | Time t ->
+            (match t with
+                | Backward (c, j) -> Printf.sprintf "Travelling back %d with card id %d" j c.id)
 
 (* print a list of enemy actions, assumes enemy actions are in order of enemy id *)
 let print_enemy_actions enemy_actions = 

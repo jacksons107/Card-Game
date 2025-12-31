@@ -4,7 +4,7 @@ module IntMap = Map.Make(Int)
 
 type end_state = Victory | Defeat | Ongoing
 
-type game = {player : player; enemies : enemy IntMap.t; end_state : end_state}
+type game = {player : player; enemies : enemy IntMap.t; end_state : end_state; timeline : game array; time_idx : int}
 
 and enemy = {hp : int; block : int; actions : action_type array; block_vals : int array; selected_action : action_type}
 
@@ -18,17 +18,21 @@ and card = {id : int; cost : int; action_type : action_type}
 
 (* normal actions can only target players or enemies *)
 and action_type = 
-    | Attack of int * int
-    | Block of int
+    | Attack of int * int (* damage and number of times *)
+    | Block of int (* amount of block *)
     | Modifier of modifier_type 
+    | Time of time_type
 (* modifiers can only target cards *)
 and modifier_type = 
-    | PowInc of int
-    | Map of modifier_type * int
+    | PowInc of int (* amount to increase power by *)
+    | Map of modifier_type * int (* modifier to apply and number of times to apply *)
+    | BackTemplate of int (* number of turns time travel card that results from template will go *)
+and time_type = 
+    | Backward of card * int (* card to carry with and number of turns back *)
 
 and action = game -> target -> game
 
 (* potential targets of an action *)
-and target = Player | Enemy of int | Card of card | Hand | Deck
+and target = Player | Enemy of int | Card of card | Hand | Deck | Game
 
-type target_kind = TKPlayer | TKEnemy | TKCard | TKHand | TKDeck
+type target_kind = TKPlayer | TKEnemy | TKCard | TKHand | TKDeck | TKGame

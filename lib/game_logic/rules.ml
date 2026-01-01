@@ -108,6 +108,7 @@ let get_target_kinds action_type =
             (match m with
                 | PowInc _ -> [TKCard]
                 | Map _ -> [TKHand; TKDeck]
+                | Clone _ -> [TKCard]
                 | BackTemplate _ -> [TKCard])
         | Time t ->
             (match t with

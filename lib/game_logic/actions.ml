@@ -90,6 +90,7 @@ let incr_card_power power (card : card) =
             (match m with
                 | PowInc p -> {card with action_type = Modifier (PowInc (p+power))}
                 | Map (a, t) -> {card with action_type = Modifier (Map (a, t+power))}
+                | Clone n -> {card with action_type = Modifier (Clone (n+power))}
                 | BackTemplate (t, c) -> {card with action_type = Modifier (BackTemplate (t+power, c))})
         | Time t ->
             (match t with
@@ -131,6 +132,17 @@ let rec map_modifier (mod_action : action) times game (cards : target) =
             failwith "Can only map a modifier onto hand or deck."
     in
     map_modifier mod_action (times - 1) new_game cards
+
+(* action to clone target card num amount of times *)
+let rec clone_action num (game : game) (target : target) = 
+    if num <= 0 then game else
+    match target with
+        | Card c ->
+            let clone, new_game = clone_card c game in
+            let new_player = {new_game.player with hand = clone :: new_game.player.hand} in
+            clone_action (num-1) {new_game with player = new_player} target
+        | _ ->
+            failwith "Can only clone a card."
 
 
 (* --- Time travelling actions --- *)
@@ -182,7 +194,7 @@ let rec instantiate_action action_type =
             (match m with
                 | PowInc p -> incr_power p
                 | Map (a, t) -> map_modifier (instantiate_action (Modifier a)) t
-                (* TODO right now just making all template generated cards free with id 69*)
+                | Clone n -> clone_action n
                 | BackTemplate (t, c) -> back_template t c)
         | Time t ->
             (match t with

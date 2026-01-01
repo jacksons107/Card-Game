@@ -29,6 +29,7 @@ and action_type =
 and modifier_type = 
     | PowInc of int (* amount to increase power by *)
     | Map of modifier_type * int (* modifier to apply and number of times to apply *)
+    | Clone of int (* number of clones to make *)
     | BackTemplate of int * int (* number of turns time travel card that results from template will go and cost of generated card *)
 and time_type = 
     | Backward of card * int (* card to carry with and number of turns back *)

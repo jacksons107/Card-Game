@@ -60,33 +60,45 @@ let interpret_interactions interactions game =
                 (match game.selected with
                     | Selection ({action_type = Modifier _; _} as s) -> (* if selected card is a modifier interpret a card click as targeting *)
                         TargetCard (s, c) :: acc
+                    | SelectingGroup {remaining = rem; _} ->
+                        (* if bag is full then a click on anything except the confirmation button is an unselect *)
+                        if rem <= 0 then
+                            Unselect :: acc
+                        else 
+                            AddToCardGroup c :: acc
                     | _ -> 
                         SelectCard c :: acc)
             | ClickPlayer ->
                 (match game.selected with
                     | Selection c -> TargetPlayer c :: acc
+                    | SelectingGroup _
                     | NoSelection -> acc)
             | ClickEnemy id ->
                 (match game.selected with
                     | Selection c -> TargetEnemy (id, c) :: acc
+                    | SelectingGroup _
                     | NoSelection -> acc)
             | ClickHand ->
                 (match game.selected with
                     | Selection c -> TargetHand c :: acc
+                    | SelectingGroup _
                     | NoSelection -> acc)
             | ClickDeck ->
                 (match game.selected with
                     | Selection c -> TargetDeck c :: acc
+                    | SelectingGroup _
                     | NoSelection -> acc)
             | ClickEndTurn ->
                 EndTurn :: acc
             | ClickGame ->
                 (match game.selected with
                     | Selection c -> TargetGame c :: acc
+                    | SelectingGroup _
                     | NoSelection -> acc)
             | ClickNothing ->
                 (match game.selected with
-                    | Selection _ -> Unselect :: acc
+                    | Selection _
+                    | SelectingGroup _ -> Unselect :: acc
                     | NoSelection -> acc)
     in
     List.fold_left (interpret game) [] interactions 
@@ -95,7 +107,23 @@ let event_handler events game_state =
     let handle state event =
         match event with
             | SelectCard c ->
-                {state with selected = Selection c}
+                (match c.action_type with
+                    | EmptyBag (n, _) ->
+                        let r = SelectingGroup {bag_card = c; selected = []; remaining = n} in
+                        {state with selected = r}
+                    | _ ->
+                        {state with selected = Selection c})
+            | AddToCardGroup c ->
+                let selected = game_state.selected in
+                (match selected with
+                    | SelectingGroup {bag_card = bc; selected = sels; remaining = rem} ->
+                        let new_rem = rem - 1 in
+                        let new_sels = sels @ [c] in
+                        {state with selected = SelectingGroup {bag_card = bc; selected = new_sels; remaining = new_rem}}
+                    | _ ->
+                        failwith "AddToCardGroup event should not be possible with non-bag card selected.")
+            | TargetCardGroup (c, g) ->
+                {game = apply_card c (CardGroup g) state.game; selected = NoSelection}
             | Unselect ->
                 {state with selected = NoSelection}
             | TargetPlayer c ->
@@ -193,20 +221,23 @@ let gen_cards game selected valid_targets layout =
         let is_selected_card =
         match selected with
             | Selection c when c.id = card.id -> true
+            | SelectingGroup {bag_card = b; _} when b.id = card.id -> true
             | _ -> false
         in
         (* only add ui element if selected card is not targeting the hand *)
         if not targeting_hand && not is_selected_card then ui_elements := !ui_elements @ [card_ui];
         match selected with
             (* this card is the selected card *)
-            | Selection c when c.id = card.id ->
-                draw_cmds :=  !draw_cmds @ [DrawCard {x=x; y=y; w=card_w; h=card_h; sel = true; hil = false; cost = card.cost; act = card.action_type}]
+            | _ when is_selected_card ->
+                draw_cmds :=  !draw_cmds @ [DrawCard {x=x; y=y; w=card_w; h=card_h; sel = true; hil = false; in_group = false; cost = card.cost; act = card.action_type}]
+            (* this card has been selected as part of a group of cards *)
+            | SelectingGroup {selected = sels; _} when List.mem card sels ->
+                draw_cmds :=  !draw_cmds @ [DrawCard {x=x; y=y; w=card_w; h=card_h; sel = false; hil = false; in_group = true; cost = card.cost; act = card.action_type}]
             (* the selected card targets individual cards *)
-            | Selection _ when is_valid_target_kind card_ui valid_targets ->
-                draw_cmds :=  !draw_cmds @ [DrawCard {x=x; y=y; w=card_w; h=card_h; sel = false; hil = true; cost = card.cost; act = card.action_type}]
-
+            | _ when is_valid_target_kind card_ui valid_targets ->
+                draw_cmds :=  !draw_cmds @ [DrawCard {x=x; y=y; w=card_w; h=card_h; sel = false; hil = true; in_group = false; cost = card.cost; act = card.action_type}]
             | _ ->
-                draw_cmds :=  !draw_cmds @ [DrawCard {x=x; y=y; w=card_w; h=card_h; sel = false; hil = false; cost = card.cost; act = card.action_type}]
+                draw_cmds :=  !draw_cmds @ [DrawCard {x=x; y=y; w=card_w; h=card_h; sel = false; hil = false; in_group = false; cost = card.cost; act = card.action_type}]
     in
     (* draw each card in hand *)
     List.iteri _gen_cards game.player.hand;
@@ -267,6 +298,7 @@ let gen_end_turn selected layout =
     let is_selection = 
         match selected with
             | Selection _ -> true
+            | SelectingGroup _ -> true
             | NoSelection -> false
     in
     let end_turn_cmd = DrawEndTurn {x=end_turn_x; y=end_turn_y; w=end_turn_w; h=end_turn_h} in
@@ -297,6 +329,13 @@ let gen_game_button selected valid_targets layout =
     else
         {layout with draw_cmds = new_cmds}
 
+let gen_selecting_group selected layout = 
+    match selected with
+        | SelectingGroup {remaining = rem; _} ->
+            {layout with draw_cmds = layout.draw_cmds @ [DrawGroupRemaining {x=end_message_x-100; y=end_message_y; rem=rem}]}
+        | _ ->
+            layout
+
 let gen_end_state game layout = 
     match game.end_state with
         | Victory -> 
@@ -312,6 +351,7 @@ let gen_layout game_state =
     let valid_targets = 
         match selected with
             | Selection c -> get_target_kinds c.action_type
+            | SelectingGroup {bag_card = c; _} -> get_target_kinds c.action_type
             | NoSelection -> []
     in
     {draw_cmds = []; ui_elements = []}
@@ -323,4 +363,5 @@ let gen_layout game_state =
     |> gen_mana_bar game
     |> gen_end_turn selected
     |> gen_game_button selected valid_targets 
+    |> gen_selecting_group selected
     |> gen_end_state game

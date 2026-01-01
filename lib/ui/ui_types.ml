@@ -4,6 +4,11 @@ open Core.Types
 type card_selection = 
     | Selection of card
     | NoSelection
+    | SelectingGroup of {
+        bag_card : card;
+        selected : card list;
+        remaining : int;
+      }
 
 type game_state = {
     game : game;
@@ -23,6 +28,8 @@ type interaction =
 (* first card in Target constructors is the card that is doing the targeting *)
 type event = 
     | SelectCard of card
+    | AddToCardGroup of card
+    | TargetCardGroup of card * card list
     | TargetPlayer of card
     | TargetEnemy of int * card
     | TargetCard of card * card
@@ -45,10 +52,11 @@ type ui_element =
     | HandUI of {box : hitbox}
     | DeckUI of {box : hitbox}
     | GameButtonUI of {box : hitbox}
+    (* | BagConfButtonUI of {box : hitbox} *)
     | EndTurnUI of {box : hitbox}
 
 type draw_cmd = 
-    | DrawCard of {x : int; y : int; w : int; h : int; sel : bool; hil : bool; cost : int; act : action_type}
+    | DrawCard of {x : int; y : int; w : int; h : int; sel : bool; hil : bool; in_group : bool; cost : int; act : action_type}
     | DrawPlayer of {x : int; y : int; w : int; h : int; hil : bool; hp : int; block : int}
     | DrawEnemy of {x : int; y : int; w : int; h : int; hil : bool; hp : int; block : int; act : action_type}
     | DrawHand of {x : int; y : int; w : int; h : int; hil : bool}
@@ -56,6 +64,8 @@ type draw_cmd =
     | DrawManaBar of {x : int; y : int; w : int; h : int; remain : int; cap : int}
     | DrawDeck of {x : int; y : int; w : int; h : int; hil : bool; size : int}
     | DrawGameButton of {x : int; y : int; w : int; h : int; hil : bool}
+    (* | DrawBagConfButton of {x : int; y : int; w : int; h : int; hil : bool} *)
+    | DrawGroupRemaining of {x : int; y : int; rem : int}
     | DrawVictoryScreen of {x : int; y : int}
     | DrawDefeatScreen of {x : int; y : int}
 

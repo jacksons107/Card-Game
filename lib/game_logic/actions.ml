@@ -28,6 +28,13 @@ let rec remove_from_hand (c : card) (h : hand) =
         else
         x :: remove_from_hand c xs
 
+let remove_group_from_hand cards (hand : hand) = 
+    List.fold_left
+        (fun h c -> remove_from_hand c h)
+        hand
+        cards
+
+
 (* helper to generate a fresh card id, returns id and new game *)
 let fresh_card_id (game : game) =
     let id = game.next_card_id in
@@ -37,6 +44,18 @@ let fresh_card_id (game : game) =
 let clone_card (card : card) (game : game) = 
     let id = game.next_card_id in
     ({card with id = id}, {game with next_card_id = id + 1})
+
+(* clone a list of cards and return list of clones and new game *)
+let clone_card_group cards game =
+    let rev_cards, new_game = 
+    List.fold_left
+        (fun (acc, g) c ->
+            let new_c, new_g = clone_card c g in
+            (new_c :: acc, new_g))
+        ([], game)
+        cards
+    in
+    (List.rev rev_cards, new_game)
 
 (* --- Attack action builders --- *)
 let attack damage game target = 
@@ -82,10 +101,12 @@ let block block game target =
 
 
 (* --- Card modifying action builders --- *)
-let incr_card_power power (card : card) = 
+let rec incr_card_power power (card : card) = 
     match card.action_type with
         | Attack (d, t) -> {card with action_type = Attack (d+power, t)}
         | Block b -> {card with action_type = Block (b+power)}
+        | EmptyBag (n, c) -> {card with action_type = EmptyBag (n+power, c)}
+        | FullBag cs -> {card with action_type = FullBag (List.map (incr_card_power power) cs)}
         | Modifier m ->
             (match m with
                 | PowInc p -> {card with action_type = Modifier (PowInc (p+power))}
@@ -182,6 +203,37 @@ let travel_back card j (game : game) (target : target) =
         | _ ->
             failwith "Can only apply travel_back to game target."
 
+
+(* --- Bag Actions --- *)
+(* stick the target group of cards into a full bag card *)
+let pack_bag num_slots cost (game : game) (target : target) = 
+    match target with
+        | CardGroup g ->
+            if List.length g != num_slots then
+                failwith "Number of card in group must exactly match number of slots in bag."
+            else 
+                (* clone group of cards *)
+                let clones, clones_game = clone_card_group g game in
+                (* create fresh id for full bag card *)
+                let id, new_game = fresh_card_id clones_game in
+                (* create full bag card with cloned group inside and cost *)
+                let full_bag = {id = id; cost = cost; action_type = FullBag clones} in
+                (* remove group cards from hand *)
+                let new_hand = full_bag :: remove_group_from_hand g new_game.player.hand in
+                (* return updated game *)
+                {new_game with player = {new_game.player with hand = new_hand}}
+        | _ ->
+            failwith "Can only pack a bag with a group of cards."
+
+(* TODO should this target game or hand or something else? *)
+(* stick the contents of the bag at the front of the hand *)
+let unpack_bag contents (game : game) (target : target) = 
+    match target with 
+        | Game ->
+            {game with player = {game.player with hand = contents @ game.player.hand}}
+        | _ -> 
+            failwith "Unpack bag can only target game."
+
 (* Instantiate an action from an action_type. To create a new action you have to
    write a function determining what the action does, create an action_type to
    represent it, and then add a new case to this function to map from the
@@ -190,6 +242,8 @@ let rec instantiate_action action_type =
     match action_type with
         | Attack (d, t) -> attack_multiple d t
         | Block b -> block b
+        | EmptyBag (n, c) -> pack_bag n c
+        | FullBag cs -> unpack_bag cs
         | Modifier m ->
             (match m with
                 | PowInc p -> incr_power p

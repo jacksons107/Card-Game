@@ -4,6 +4,8 @@ let rec string_of_action_type a_type =
     match a_type with
         | Attack (d, t) -> Printf.sprintf "Attack %d damage, %d times" d t
         | Block b -> Printf.sprintf "Block %d" b
+        | EmptyBag (n, c) -> Printf.sprintf "Empty bag with %d slots that will cost %d to unpack" n c
+        | FullBag cs -> Printf.sprintf "Full bag with %d cards in it" (List.length cs)
         | Modifier m ->
             (match m with
             | PowInc p -> Printf.sprintf "Increase power %d" p

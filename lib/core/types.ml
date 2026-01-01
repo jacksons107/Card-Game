@@ -23,6 +23,8 @@ and card_template = {cost : int; action_type : action_type}
 and action_type = 
     | Attack of int * int (* damage and number of times *)
     | Block of int (* amount of block *)
+    | EmptyBag of int * int (* number of slots in bag and cost of generated full bag *)
+    | FullBag of card list
     | Modifier of modifier_type 
     | Time of time_type
 (* modifiers can only target cards *)
@@ -31,12 +33,13 @@ and modifier_type =
     | Map of modifier_type * int (* modifier to apply and number of times to apply *)
     | Clone of int (* number of clones to make *)
     | BackTemplate of int * int (* number of turns time travel card that results from template will go and cost of generated card *)
+(* TODO do we actually need this separate type? *)
 and time_type = 
     | Backward of card * int (* card to carry with and number of turns back *)
 
 and action = game -> target -> game
 
 (* potential targets of an action *)
-and target = Player | Enemy of int | Card of card | Hand | Deck | Game
+and target = Player | Enemy of int | Card of card | CardGroup of card list | Hand | Deck | Game
 
 type target_kind = TKPlayer | TKEnemy | TKCard | TKHand | TKDeck | TKGame

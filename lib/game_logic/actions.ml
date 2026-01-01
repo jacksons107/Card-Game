@@ -40,22 +40,62 @@ let fresh_card_id (game : game) =
     let id = game.next_card_id in
     (id, {game with next_card_id = id + 1})
 
-(* clone a card and give it a new id, returns the new card and new game *)
-let clone_card (card : card) (game : game) = 
+(* clone a card and give it a new id, returns the new card and new game
+   recursively clones any cards contained within the card also *)
+let rec clone_card (card : card) (game : game) : card * game =
     let id = game.next_card_id in
-    ({card with id = id}, {game with next_card_id = id + 1})
+    let game = { game with next_card_id = id + 1 } in
+    let action_type, game = clone_action_type card.action_type game in
+    ({ card with id; action_type }, game)
 
-(* clone a list of cards and return list of clones and new game *)
-let clone_card_group cards game =
-    let rev_cards, new_game = 
+and clone_action_type (act : action_type) (game : game) =
+    match act with
+    | Attack _ | Block _ | EmptyBag _ ->
+        (act, game)
+
+    | FullBag cards ->
+        let cards, game = clone_card_list cards game in
+        (FullBag cards, game)
+
+    | Modifier m ->
+        let m, game = clone_modifier m game in
+        (Modifier m, game)
+
+    | Time t ->
+        let t, game = clone_time t game in
+        (Time t, game)
+
+and clone_modifier (m : modifier_type) (game : game) =
+    match m with
+    | PowInc _ | Clone _ ->
+        (m, game)
+
+    | Map (inner, n) ->
+        let inner, game = clone_modifier inner game in
+        (Map (inner, n), game)
+
+    | BackTemplate _ ->
+        (* Template cards should NOT clone the card yet;
+            cloning happens when instantiated *)
+        (m, game)
+
+and clone_time (t : time_type) (game : game) =
+    match t with
+    | Backward (card, j) ->
+        let card, game = clone_card card game in
+        (Backward (card, j), game)
+
+(* clone a list of cards, used as a helper for clone_card and by other functions *)
+and clone_card_list (cards : card list) (game : game) =
     List.fold_left
-        (fun (acc, g) c ->
-            let new_c, new_g = clone_card c g in
-            (new_c :: acc, new_g))
+        (fun (acc, game) card ->
+        let card, game = clone_card card game in
+        (card :: acc, game))
         ([], game)
         cards
-    in
-    (List.rev rev_cards, new_game)
+    |> fun (rev_cards, game) ->
+        (List.rev rev_cards, game)
+
 
 (* --- Attack action builders --- *)
 let attack damage game target = 
@@ -213,7 +253,7 @@ let pack_bag num_slots cost (game : game) (target : target) =
                 failwith "Number of card in group must exactly match number of slots in bag."
             else 
                 (* clone group of cards *)
-                let clones, clones_game = clone_card_group g game in
+                let clones, clones_game = clone_card_list g game in
                 (* create fresh id for full bag card *)
                 let id, new_game = fresh_card_id clones_game in
                 (* create full bag card with cloned group inside and cost *)

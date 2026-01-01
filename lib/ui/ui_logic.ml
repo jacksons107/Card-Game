@@ -42,6 +42,9 @@ let collect_interactions (layout : ui_layout) =
             | GameButtonUI b when  hit b.box ->
                 hit_something := true;
                 if pressed then interactions := ClickGame :: !interactions
+            | BagConfButtonUI c when hit c.box ->
+                hit_something := true;
+                if pressed then interactions := ClickBagConf :: !interactions
             | _ -> ()
 
     in
@@ -94,6 +97,13 @@ let interpret_interactions interactions game =
                 (match game.selected with
                     | Selection c -> TargetGame c :: acc
                     | SelectingGroup _
+                    | NoSelection -> acc)
+            | ClickBagConf ->
+                (* TODO should we explicitly fail if we hit a case here that should be unreachable? *)
+                (match game.selected with
+                    | SelectingGroup {bag_card = bc; selected = sels; _} ->
+                        TargetCardGroup (bc, sels) :: acc
+                    | Selection _
                     | NoSelection -> acc)
             | ClickNothing ->
                 (match game.selected with
@@ -331,8 +341,17 @@ let gen_game_button selected valid_targets layout =
 
 let gen_selecting_group selected layout = 
     match selected with
-        | SelectingGroup {remaining = rem; _} ->
+        | SelectingGroup {remaining = rem; _} when rem > 0 ->
             {layout with draw_cmds = layout.draw_cmds @ [DrawGroupRemaining {x=end_message_x-100; y=end_message_y; rem=rem}]}
+        | _ ->
+            layout
+
+let gen_group_conf_button selected layout = 
+    (* only draw button and generate hitbox if there are no slots left to fill in bag *)
+    match selected with
+        | SelectingGroup {remaining = 0; _} ->
+            {draw_cmds = layout.draw_cmds @ [DrawBagConfButton {x=game_button_x; y=game_button_y; w=game_button_w-50; h=game_button_h}];
+            ui_elements = layout.ui_elements @ [BagConfButtonUI {box = {x=game_button_x; y=game_button_y; w=game_button_w-50; h=game_button_h}}]}
         | _ ->
             layout
 
@@ -364,4 +383,5 @@ let gen_layout game_state =
     |> gen_end_turn selected
     |> gen_game_button selected valid_targets 
     |> gen_selecting_group selected
+    |> gen_group_conf_button selected
     |> gen_end_state game

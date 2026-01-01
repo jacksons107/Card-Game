@@ -117,7 +117,7 @@ let draw_end_turn x y w h =
 let draw_game_button x y w h hil = 
     if hil then begin
         draw_rectangle x y w h Color.gold;
-        draw_text "Target Game" (x + 10) (y + 10) 20 Color.black
+        draw_text "Play Card" (x + 10) (y + 10) 20 Color.black
     end
 
 let draw_mana_bar x y w h remain cap = 
@@ -126,6 +126,10 @@ let draw_mana_bar x y w h remain cap =
 
 let draw_group_remaining x y rem =
     draw_text (Printf.sprintf "Select %d card(s) to put in bag." rem) x y 30 Color.black
+
+let draw_bag_conf_button x y w h = 
+    draw_rectangle x y w h Color.gold;
+    draw_text "Fill Bag" (x + 10) (y + 10) 20 Color.black
 
 let draw_victory x y =  
     draw_text "Victory" x y 50 Color.blue
@@ -150,6 +154,8 @@ let draw_layout layout =
                 draw_end_turn b.x b.y b.w b.h
             | DrawGameButton g ->
                 draw_game_button g.x g.y g.w g.h g.hil
+            | DrawBagConfButton c ->
+                draw_bag_conf_button c.x c.y c.w c.h
             | DrawGroupRemaining r ->
                 draw_group_remaining r.x r.y r.rem
             | DrawManaBar m ->

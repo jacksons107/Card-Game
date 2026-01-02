@@ -210,7 +210,7 @@ let travel_back j (game : game) (target : target) =
         | CardGroup cards ->
             let card, clone_game = clone_card (List.hd cards) game in
             let len = Array.length clone_game.timeline in
-            let new_idx = clone_game.time_idx - j in
+            let new_idx = clone_game.time_idx - j - 1 in
             if new_idx >= 0 && new_idx < len then
                 let new_timeline = clone_game.timeline in
                 let new_next_id = clone_game.next_card_id in

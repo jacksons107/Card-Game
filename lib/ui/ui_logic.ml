@@ -63,9 +63,12 @@ let interpret_interactions interactions game =
                 (match game.selected with
                     | Selection ({action_type = Modifier _; _} as s) -> (* if selected card is a modifier interpret a card click as targeting *)
                         TargetCard (s, c) :: acc
-                    | SelectingGroup {remaining = rem; _} ->
+                    | SelectingGroup {bag_card = bc; selected = sels; remaining = rem} ->
                         (* if bag is full then a click on anything except the confirmation button is an unselect *)
                         if rem <= 0 then
+                            Unselect :: acc
+                        (* if clicked card is already in selection group or the bag card then unselect *)
+                        else if List.mem c (bc :: sels) then
                             Unselect :: acc
                         else 
                             AddToCardGroup c :: acc
@@ -198,65 +201,176 @@ let gen_deck game selected valid_targets layout =
     else
         {layout with draw_cmds = new_cmds}
 
-let gen_hand game selected valid_targets layout = 
-    let hand_w =
-        match List.length game.player.hand with
-        | 0 -> 0
-        | n ->
-            let last_card_x = hand_x_spacing (n - 1) in
-            (last_card_x + card_w + 50) - hand_x
-    in
-    (* TODO should have the box in these situations be a variable to keep the ui element and the draw command coupled *)
-    let hand_ui = HandUI {box = {x=hand_x; y=hand_y - 25; w=hand_w; h=card_h + 50}} in
-    let hand_cmd = 
-        match selected with
-            | Selection _ when is_valid_target_kind hand_ui valid_targets ->
-                DrawHand {x=hand_x; y=hand_y - 25; w=hand_w; h=card_h + 50; hil=true}
-            | _ ->
-                DrawHand {x=hand_x; y=hand_y; w=hand_w; h=card_h + 50; hil=false}
-    in
-    let new_cmds = layout.draw_cmds @ [hand_cmd] in
-    let targeting_hand = List.mem TKHand valid_targets in
-    if targeting_hand then
-        let new_ui = layout.ui_elements @ [hand_ui] in
-        {draw_cmds = new_cmds; ui_elements = new_ui}
+(* TODO figure out a better place for these helpers, probably separate these gen
+        functions into their own files *)
+let screen_width = 1280
+let max_hand_w = screen_width - (hand_x * 2)
+let card_x layout i =
+    hand_x + i * (layout.card_w + layout.spacing)
+
+let compute_hand_layout ~max_hand_w hand_size =
+    if hand_size = 0 then
+        { card_w; card_h; spacing = 0; hand_w = 0 }
     else
-        {layout with draw_cmds = new_cmds}
+        let base_spacing = 20 in
+        let base_card_w = card_w in
+        let base_card_h = card_h in
+
+        let needed_w =
+        hand_size * base_card_w + (hand_size - 1) * base_spacing
+        in
+
+        if needed_w <= max_hand_w then
+        (* Everything fits normally *)
+        {
+            card_w = base_card_w;
+            card_h = base_card_h;
+            spacing = base_spacing;
+            hand_w = needed_w;
+        }
+        else
+        (* Scale cards down to fit *)
+        let available_w = max_hand_w in
+        let spacing = 10 in
+        let scaled_w =
+            (available_w - (hand_size - 1) * spacing) / hand_size
+        in
+        let scale =
+            float scaled_w /. float base_card_w
+        in
+        {
+            card_w = scaled_w;
+            card_h = int_of_float (float base_card_h *. scale);
+            spacing;
+            hand_w = available_w;
+        }
+
+
+let gen_hand game selected valid_targets layout =
+    let hand_size = List.length game.player.hand in
+    let hl =
+        compute_hand_layout
+        ~max_hand_w:(screen_width - (hand_x * 2))
+        hand_size
+    in
+
+    let hand_ui =
+        HandUI {
+        box = {
+            x = hand_x;
+            y = hand_y - 25;
+            w = hl.hand_w;
+            h = hl.card_h + 50;
+        }
+        }
+    in
+
+    let hand_cmd =
+        match selected with
+        | Selection _ when is_valid_target_kind hand_ui valid_targets ->
+            DrawHand { x = hand_x; y = hand_y - 25;
+                    w = hl.hand_w; h = hl.card_h + 50; hil = true }
+        | _ ->
+            DrawHand { x = hand_x; y = hand_y - 25;
+                    w = hl.hand_w; h = hl.card_h + 50; hil = false }
+    in
+
+    let draw_cmds = layout.draw_cmds @ [hand_cmd] in
+    let targeting_hand = List.mem TKHand valid_targets in
+
+    if targeting_hand then
+        { draw_cmds; ui_elements = layout.ui_elements @ [hand_ui] }
+    else
+        { layout with draw_cmds }
 
 let gen_cards game selected valid_targets layout =
+    let hand = game.player.hand in
+    let hand_size = List.length hand in
+
+    let hl =
+        compute_hand_layout
+        ~max_hand_w:(screen_width - (hand_x * 2))
+        hand_size
+    in
+
     let ui_elements = ref layout.ui_elements in
     let draw_cmds = ref layout.draw_cmds in
-    (* TODO is there a pure way to do this and is it worth doing it that way? *)
-    let _gen_cards i card =
-        let x = hand_x_spacing i in
-        let y = hand_y in
-        let card_ui = CardUI {card = card; box = {x=x; y=y; w=card_w; h=card_h}} in
-        (* TODO can probably refactor this logic better since selected is matched against twice *)
-        let targeting_hand = List.mem TKHand valid_targets in
-        let is_selected_card =
+
+    let targeting_hand = List.mem TKHand valid_targets in
+
+    let is_selected_card card =
         match selected with
-            | Selection c when c.id = card.id -> true
-            | SelectingGroup {bag_card = b; _} when b.id = card.id -> true
-            | _ -> false
-        in
-        (* only add ui element if selected card is not targeting the hand *)
-        if not targeting_hand && not is_selected_card then ui_elements := !ui_elements @ [card_ui];
-        match selected with
-            (* this card is the selected card *)
-            | _ when is_selected_card ->
-                draw_cmds :=  !draw_cmds @ [DrawCard {x=x; y=y; w=card_w; h=card_h; sel = true; hil = false; in_group = false; cost = card.cost; act = card.action_type}]
-            (* this card has been selected as part of a group of cards *)
-            | SelectingGroup {selected = sels; _} when List.mem card sels ->
-                draw_cmds :=  !draw_cmds @ [DrawCard {x=x; y=y; w=card_w; h=card_h; sel = false; hil = false; in_group = true; cost = card.cost; act = card.action_type}]
-            (* the selected card targets individual cards *)
-            | _ when is_valid_target_kind card_ui valid_targets ->
-                draw_cmds :=  !draw_cmds @ [DrawCard {x=x; y=y; w=card_w; h=card_h; sel = false; hil = true; in_group = false; cost = card.cost; act = card.action_type}]
-            | _ ->
-                draw_cmds :=  !draw_cmds @ [DrawCard {x=x; y=y; w=card_w; h=card_h; sel = false; hil = false; in_group = false; cost = card.cost; act = card.action_type}]
+        | Selection c -> c.id = card.id
+        | SelectingGroup { bag_card; _ } -> bag_card.id = card.id
+        | _ -> false
     in
-    (* draw each card in hand *)
-    List.iteri _gen_cards game.player.hand;
-    {draw_cmds = !draw_cmds; ui_elements = !ui_elements}
+
+    let is_in_group card =
+        match selected with
+        | SelectingGroup { selected = sels; _ } ->
+            List.exists (fun c -> c.id = card.id) sels
+        | _ -> false
+    in
+
+    let gen_one i card =
+        let x = hand_x + i * (hl.card_w + hl.spacing) in
+        let y = hand_y in
+
+        let box = { x; y; w = hl.card_w; h = hl.card_h } in
+        let card_ui = CardUI { card; box } in
+
+        (* Only add card hitbox if:
+        - we are not targeting the hand
+        - and this card is not the selected card itself *)
+        if not targeting_hand && not (is_selected_card card) then
+        ui_elements := !ui_elements @ [card_ui];
+
+        let draw_cmd =
+        match selected with
+        (* Selected card *)
+        | _ when is_selected_card card ->
+            DrawCard {
+                x; y; w = hl.card_w; h = hl.card_h;
+                sel = true; hil = false; in_group = false;
+                cost = card.cost; act = card.action_type;
+            }
+
+        (* Card is part of a selected group *)
+        | SelectingGroup _ when is_in_group card ->
+            DrawCard {
+                x; y; w = hl.card_w; h = hl.card_h;
+                sel = false; hil = false; in_group = true;
+                cost = card.cost; act = card.action_type;
+            }
+
+        (* Card is a valid individual target *)
+        | _ when is_valid_target_kind card_ui valid_targets ->
+            DrawCard {
+                x; y; w = hl.card_w; h = hl.card_h;
+                sel = false; hil = true; in_group = false;
+                cost = card.cost; act = card.action_type;
+            }
+
+        (* Normal card *)
+        | _ ->
+            DrawCard {
+                x; y; w = hl.card_w; h = hl.card_h;
+                sel = false; hil = false; in_group = false;
+                cost = card.cost; act = card.action_type;
+            }
+        in
+
+        draw_cmds := !draw_cmds @ [draw_cmd]
+    in
+
+    List.iteri gen_one hand;
+
+    {
+        draw_cmds = !draw_cmds;
+        ui_elements = !ui_elements;
+    }
+
+
 
 let gen_player game selected valid_targets layout = 
     let player = game.player in

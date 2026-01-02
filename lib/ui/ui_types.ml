@@ -46,6 +46,14 @@ type hitbox = {
     w : int;
     h : int
 }
+
+type hand_layout = {
+  card_w : int;
+  card_h : int;
+  spacing : int;
+  hand_w : int;
+}
+
 type ui_element = 
     | CardUI of {card : card; box : hitbox}
     | PlayerUI of {player : player; box : hitbox}

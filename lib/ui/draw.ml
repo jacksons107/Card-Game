@@ -51,7 +51,7 @@ let draw_card x y w h sel hil in_group cost act =
     else
         draw_rectangle x y w h Color.lightgray);
     draw_rectangle_lines x y w h Color.darkgray;
-    draw_text (string_of_int cost) (x + 100) (y + 10) 20 Color.blue;
+    draw_text (string_of_int cost) (x + w - 20) (y + 10) 20 Color.blue;
     let action_string = string_of_action_type act in
     let font = get_font_default () in
     let font_size = 12. in

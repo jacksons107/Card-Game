@@ -27,7 +27,11 @@ let init_deck templates game =
             ([], game)
             templates
     in
-    let new_player = {new_game.player with deck = List.rev deck} in
+    (* toggle on for random deck *)
+    let shuffled_deck = shuffle_deck deck in
+    let new_player = {new_game.player with deck = shuffled_deck} in
+    (* toggle on for deterministic deck *)
+    (* let new_player = {new_game.player with deck = List.rev deck} in *)
     {new_game with player = new_player}
 
 (* draw num cards from deck to create initial hand *)

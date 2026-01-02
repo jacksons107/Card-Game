@@ -85,6 +85,16 @@ let rec draw_cards num_cards (game : game) =
             let new_game = {game with player = new_p} in
             draw_cards (num_cards - 1) new_game
 
+(* shuffle a list of cards  *)
+let shuffle_cards cards = 
+    let arr = Array.of_list cards in
+    Array.shuffle ~rand:Random.int arr;
+    Array.to_list arr
+
+(* shuffle a deck *)
+let shuffle_deck deck : deck =
+    shuffle_cards deck
+
 (* Removes all dead enemies (hp <= 0) from the game *)
 let remove_dead_enemies (game : game)=
     let alive_enemies =

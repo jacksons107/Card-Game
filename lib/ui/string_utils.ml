@@ -4,14 +4,16 @@ let rec string_of_action_type a_type =
     match a_type with
         | Attack (d, t) -> Printf.sprintf "Attack %d damage, %d times" d t
         | Block b -> Printf.sprintf "Block %d" b
+        | EmptyBag (n, c) -> Printf.sprintf "Empty bag with %d slots that will cost %d to unpack" n c
+        | FullBag cs -> Printf.sprintf "Full bag with %d cards in it" (List.length cs)
         | Modifier m ->
             (match m with
             | PowInc p -> Printf.sprintf "Increase power %d" p
             | Map (a, t) -> Printf.sprintf "Map [%s] %d times" (string_of_action_type (Modifier a)) t
-            | BackTemplate (t, c) -> Printf.sprintf "Template to travel back %d turns at %d cost" t c)
+            | Clone n -> Printf.sprintf "Clone a card %d times" n)
         | Time t ->
             (match t with
-                | Backward (c, j) -> Printf.sprintf "Travelling back %d with card id %d" j c.id)
+                | Backward j -> Printf.sprintf "Travel back %d with one card" j)
 
 (* print a list of enemy actions, assumes enemy actions are in order of enemy id *)
 let print_enemy_actions enemy_actions = 

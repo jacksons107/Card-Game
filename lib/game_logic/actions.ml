@@ -28,15 +28,68 @@ let rec remove_from_hand (c : card) (h : hand) =
         else
         x :: remove_from_hand c xs
 
+let remove_group_from_hand cards (hand : hand) = 
+    List.fold_left
+        (fun h c -> remove_from_hand c h)
+        hand
+        cards
+
+
 (* helper to generate a fresh card id, returns id and new game *)
 let fresh_card_id (game : game) =
     let id = game.next_card_id in
     (id, {game with next_card_id = id + 1})
 
-(* clone a card and give it a new id, returns the new card and new game *)
-let clone_card (card : card) (game : game) = 
+(* clone a card and give it a new id, returns the new card and new game
+   recursively clones any cards contained within the card also *)
+let rec clone_card (card : card) (game : game) : card * game =
     let id = game.next_card_id in
-    ({card with id = id}, {game with next_card_id = id + 1})
+    let game = { game with next_card_id = id + 1 } in
+    let action_type, game = clone_action_type card.action_type game in
+    ({ card with id; action_type }, game)
+
+and clone_action_type (act : action_type) (game : game) =
+    match act with
+    | Attack _ | Block _ | EmptyBag _ ->
+        (act, game)
+
+    | FullBag cards ->
+        let cards, game = clone_card_list cards game in
+        (FullBag cards, game)
+
+    | Modifier m ->
+        let m, game = clone_modifier m game in
+        (Modifier m, game)
+
+    | Time t ->
+        let t, game = clone_time t game in
+        (Time t, game)
+
+and clone_modifier (m : modifier_type) (game : game) =
+    match m with
+    | PowInc _ | Clone _ ->
+        (m, game)
+
+    | Map (inner, n) ->
+        let inner, game = clone_modifier inner game in
+        (Map (inner, n), game)
+
+and clone_time (t : time_type) (game : game) =
+    match t with
+    | Backward _ ->
+        (t, game)
+
+(* clone a list of cards, used as a helper for clone_card and by other functions *)
+and clone_card_list (cards : card list) (game : game) =
+    List.fold_left
+        (fun (acc, game) card ->
+        let card, game = clone_card card game in
+        (card :: acc, game))
+        ([], game)
+        cards
+    |> fun (rev_cards, game) ->
+        (List.rev rev_cards, game)
+
 
 (* --- Attack action builders --- *)
 let attack damage game target = 
@@ -82,18 +135,20 @@ let block block game target =
 
 
 (* --- Card modifying action builders --- *)
-let incr_card_power power (card : card) = 
+let rec incr_card_power power (card : card) = 
     match card.action_type with
         | Attack (d, t) -> {card with action_type = Attack (d+power, t)}
         | Block b -> {card with action_type = Block (b+power)}
+        | EmptyBag (n, c) -> {card with action_type = EmptyBag (n+power, c)}
+        | FullBag cs -> {card with action_type = FullBag (List.map (incr_card_power power) cs)}
         | Modifier m ->
             (match m with
                 | PowInc p -> {card with action_type = Modifier (PowInc (p+power))}
                 | Map (a, t) -> {card with action_type = Modifier (Map (a, t+power))}
-                | BackTemplate (t, c) -> {card with action_type = Modifier (BackTemplate (t+power, c))})
+                | Clone n -> {card with action_type = Modifier (Clone (n+power))})
         | Time t ->
             (match t with
-                | Backward (c, t) -> {card with action_type = Time (Backward (c, t+power))})
+                | Backward j -> {card with action_type = Time (Backward (j+power))})
 
 (* TODO inefficient and sketchy to do the mapping on hand and deck relying on card id *)
 let replace_card (new_card : card) (game : game )= 
@@ -132,33 +187,34 @@ let rec map_modifier (mod_action : action) times game (cards : target) =
     in
     map_modifier mod_action (times - 1) new_game cards
 
-
-(* --- Time travelling actions --- *)
-
-(* template for a card that travels back t turns in time, costs cost, and brings card target with it *)
-let back_template t cost (game : game) (target : target) = 
+(* action to clone target card num amount of times *)
+let rec clone_action num (game : game) (target : target) = 
+    if num <= 0 then game else
     match target with
         | Card c ->
-            let cloned_card, cloned_game = clone_card c game in
-            let id, new_game = fresh_card_id cloned_game in
-            let new_card = {id = id; cost = cost; action_type = Time (Backward (cloned_card, t))} in
-            let new_hand = remove_from_hand c game.player.hand in
-            {new_game with player = {game.player with hand = new_card :: new_hand}}
+            let clone, new_game = clone_card c game in
+            let new_player = {new_game.player with hand = clone :: new_game.player.hand} in
+            clone_action (num-1) {new_game with player = new_player} target
         | _ ->
-            failwith "Can only target a card with time template."
+            failwith "Can only clone a card."
+
+
+(* --- Time travelling actions --- *)
 
 (* TODO how to handle case when they want to travel to a non existent index? *)
 (* travel backwards in time by x, if that entry exists, and restore game state with card also in hand,
    overwrite entrie's timeline, time_idx, and next_card_id with most recent  *)
-let travel_back card j (game : game) (target : target) =
+let travel_back j (game : game) (target : target) =
     match target with
-        | Game ->
-            let len = Array.length game.timeline in
-            let new_idx = game.time_idx - j in
+        (* TODO use of card group is a little jank if only ever expecting one card here *)
+        | CardGroup cards ->
+            let card, clone_game = clone_card (List.hd cards) game in
+            let len = Array.length clone_game.timeline in
+            let new_idx = clone_game.time_idx - j in
             if new_idx >= 0 && new_idx < len then
-                let new_timeline = game.timeline in
-                let new_next_id = game.next_card_id in
-                let new_game = Array.get game.timeline new_idx in
+                let new_timeline = clone_game.timeline in
+                let new_next_id = clone_game.next_card_id in
+                let new_game = Array.get clone_game.timeline new_idx in
                 let new_hand = card :: new_game.player.hand in
                 {new_game with 
                     player = {new_game.player with hand = new_hand};
@@ -170,6 +226,37 @@ let travel_back card j (game : game) (target : target) =
         | _ ->
             failwith "Can only apply travel_back to game target."
 
+
+(* --- Bag Actions --- *)
+(* stick the target group of cards into a full bag card *)
+let pack_bag num_slots cost (game : game) (target : target) = 
+    match target with
+        | CardGroup g ->
+            if List.length g != num_slots then
+                failwith "Number of card in group must exactly match number of slots in bag."
+            else 
+                (* clone group of cards *)
+                let clones, clones_game = clone_card_list g game in
+                (* create fresh id for full bag card *)
+                let id, new_game = fresh_card_id clones_game in
+                (* create full bag card with cloned group inside and cost *)
+                let full_bag = {id = id; cost = cost; action_type = FullBag clones} in
+                (* remove group cards from hand *)
+                let new_hand = full_bag :: remove_group_from_hand g new_game.player.hand in
+                (* return updated game *)
+                {new_game with player = {new_game.player with hand = new_hand}}
+        | _ ->
+            failwith "Can only pack a bag with a group of cards."
+
+(* TODO should this target game or hand or something else? *)
+(* stick the contents of the bag at the front of the hand *)
+let unpack_bag contents (game : game) (target : target) = 
+    match target with 
+        | Game ->
+            {game with player = {game.player with hand = contents @ game.player.hand}}
+        | _ -> 
+            failwith "Unpack bag can only target game."
+
 (* Instantiate an action from an action_type. To create a new action you have to
    write a function determining what the action does, create an action_type to
    represent it, and then add a new case to this function to map from the
@@ -178,15 +265,16 @@ let rec instantiate_action action_type =
     match action_type with
         | Attack (d, t) -> attack_multiple d t
         | Block b -> block b
+        | EmptyBag (n, c) -> pack_bag n c
+        | FullBag cs -> unpack_bag cs
         | Modifier m ->
             (match m with
                 | PowInc p -> incr_power p
                 | Map (a, t) -> map_modifier (instantiate_action (Modifier a)) t
-                (* TODO right now just making all template generated cards free with id 69*)
-                | BackTemplate (t, c) -> back_template t c)
+                | Clone n -> clone_action n)
         | Time t ->
             (match t with
-                | Backward (c, j) -> travel_back c j)
+                | Backward j -> travel_back j)
 
 
 (* ======= Example actions ========= *)

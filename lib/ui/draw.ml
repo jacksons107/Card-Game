@@ -41,11 +41,13 @@ let draw_wrapped_text ~font ~font_size ~spacing ~x ~y ~w ~h ~color text =
             spacing
             color)
 
-let draw_card x y w h sel hil cost act =
+let draw_card x y w h sel hil in_group cost act =
     (if sel then
         draw_rectangle x y w h Color.green
     else if hil then
         draw_rectangle x y w h Color.gold
+    else if in_group then
+        draw_rectangle x y w h Color.purple
     else
         draw_rectangle x y w h Color.lightgray);
     draw_rectangle_lines x y w h Color.darkgray;
@@ -115,12 +117,19 @@ let draw_end_turn x y w h =
 let draw_game_button x y w h hil = 
     if hil then begin
         draw_rectangle x y w h Color.gold;
-        draw_text "Target Game" (x + 10) (y + 10) 20 Color.black
+        draw_text "Play Card" (x + 10) (y + 10) 20 Color.black
     end
 
 let draw_mana_bar x y w h remain cap = 
     draw_rectangle x y w h Color.blue;
     draw_text (Printf.sprintf "%d / %d" remain cap) (x + 10) (y + 10) 20 Color.white
+
+let draw_group_remaining x y rem =
+    draw_text (Printf.sprintf "Select %d card(s)" rem) x y 30 Color.black
+
+let draw_bag_conf_button x y w h = 
+    draw_rectangle x y w h Color.gold;
+    draw_text "Confirm Selection" (x + 10) (y + 10) 20 Color.black
 
 let draw_victory x y =  
     draw_text "Victory" x y 50 Color.blue
@@ -132,7 +141,7 @@ let draw_layout layout =
     let draw_cmd cmd = 
         match cmd with
             | DrawCard c ->
-                draw_card c.x c.y c.w c.h c.sel c.hil c.cost c.act
+                draw_card c.x c.y c.w c.h c.sel c.hil c.in_group c.cost c.act
             | DrawPlayer p ->
                 draw_player p.x p.y p.w p.h p.hil p.hp p.block
             | DrawEnemy e ->
@@ -145,6 +154,10 @@ let draw_layout layout =
                 draw_end_turn b.x b.y b.w b.h
             | DrawGameButton g ->
                 draw_game_button g.x g.y g.w g.h g.hil
+            | DrawSelConfButton c ->
+                draw_bag_conf_button c.x c.y c.w c.h
+            | DrawGroupRemaining r ->
+                draw_group_remaining r.x r.y r.rem
             | DrawManaBar m ->
                 draw_mana_bar m.x m.y m.w m.h m.remain m.cap
             | DrawVictoryScreen s ->

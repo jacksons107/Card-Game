@@ -74,16 +74,10 @@ and clone_modifier (m : modifier_type) (game : game) =
         let inner, game = clone_modifier inner game in
         (Map (inner, n), game)
 
-    | BackTemplate _ ->
-        (* Template cards should NOT clone the card yet;
-            cloning happens when instantiated *)
-        (m, game)
-
 and clone_time (t : time_type) (game : game) =
     match t with
-    | Backward (card, j) ->
-        let card, game = clone_card card game in
-        (Backward (card, j), game)
+    | Backward _ ->
+        (t, game)
 
 (* clone a list of cards, used as a helper for clone_card and by other functions *)
 and clone_card_list (cards : card list) (game : game) =
@@ -151,11 +145,10 @@ let rec incr_card_power power (card : card) =
             (match m with
                 | PowInc p -> {card with action_type = Modifier (PowInc (p+power))}
                 | Map (a, t) -> {card with action_type = Modifier (Map (a, t+power))}
-                | Clone n -> {card with action_type = Modifier (Clone (n+power))}
-                | BackTemplate (t, c) -> {card with action_type = Modifier (BackTemplate (t+power, c))})
+                | Clone n -> {card with action_type = Modifier (Clone (n+power))})
         | Time t ->
             (match t with
-                | Backward (c, t) -> {card with action_type = Time (Backward (c, t+power))})
+                | Backward j -> {card with action_type = Time (Backward (j+power))})
 
 (* TODO inefficient and sketchy to do the mapping on hand and deck relying on card id *)
 let replace_card (new_card : card) (game : game )= 
@@ -208,30 +201,20 @@ let rec clone_action num (game : game) (target : target) =
 
 (* --- Time travelling actions --- *)
 
-(* template for a card that travels back t turns in time, costs cost, and brings card target with it *)
-let back_template t cost (game : game) (target : target) = 
-    match target with
-        | Card c ->
-            let cloned_card, cloned_game = clone_card c game in
-            let id, new_game = fresh_card_id cloned_game in
-            let new_card = {id = id; cost = cost; action_type = Time (Backward (cloned_card, t))} in
-            let new_hand = remove_from_hand c game.player.hand in
-            {new_game with player = {game.player with hand = new_card :: new_hand}}
-        | _ ->
-            failwith "Can only target a card with time template."
-
 (* TODO how to handle case when they want to travel to a non existent index? *)
 (* travel backwards in time by x, if that entry exists, and restore game state with card also in hand,
    overwrite entrie's timeline, time_idx, and next_card_id with most recent  *)
-let travel_back card j (game : game) (target : target) =
+let travel_back j (game : game) (target : target) =
     match target with
-        | Game ->
-            let len = Array.length game.timeline in
-            let new_idx = game.time_idx - j in
+        (* TODO use of card group is a little jank if only ever expecting one card here *)
+        | CardGroup cards ->
+            let card, clone_game = clone_card (List.hd cards) game in
+            let len = Array.length clone_game.timeline in
+            let new_idx = clone_game.time_idx - j in
             if new_idx >= 0 && new_idx < len then
-                let new_timeline = game.timeline in
-                let new_next_id = game.next_card_id in
-                let new_game = Array.get game.timeline new_idx in
+                let new_timeline = clone_game.timeline in
+                let new_next_id = clone_game.next_card_id in
+                let new_game = Array.get clone_game.timeline new_idx in
                 let new_hand = card :: new_game.player.hand in
                 {new_game with 
                     player = {new_game.player with hand = new_hand};
@@ -288,11 +271,10 @@ let rec instantiate_action action_type =
             (match m with
                 | PowInc p -> incr_power p
                 | Map (a, t) -> map_modifier (instantiate_action (Modifier a)) t
-                | Clone n -> clone_action n
-                | BackTemplate (t, c) -> back_template t c)
+                | Clone n -> clone_action n)
         | Time t ->
             (match t with
-                | Backward (c, j) -> travel_back c j)
+                | Backward j -> travel_back j)
 
 
 (* ======= Example actions ========= *)

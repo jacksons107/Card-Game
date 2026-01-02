@@ -10,11 +10,10 @@ let rec string_of_action_type a_type =
             (match m with
             | PowInc p -> Printf.sprintf "Increase power %d" p
             | Map (a, t) -> Printf.sprintf "Map [%s] %d times" (string_of_action_type (Modifier a)) t
-            | Clone n -> Printf.sprintf "Clone a card %d times" n
-            | BackTemplate (t, c) -> Printf.sprintf "Template to travel back %d turns at %d cost" t c)
+            | Clone n -> Printf.sprintf "Clone a card %d times" n)
         | Time t ->
             (match t with
-                | Backward (c, j) -> Printf.sprintf "Travelling back %d with card id %d" j c.id)
+                | Backward j -> Printf.sprintf "Travel back %d with one card" j)
 
 (* print a list of enemy actions, assumes enemy actions are in order of enemy id *)
 let print_enemy_actions enemy_actions = 

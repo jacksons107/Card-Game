@@ -22,7 +22,7 @@ type interaction =
     | ClickHand
     | ClickDeck
     | ClickGame
-    | ClickBagConf
+    | ClickSelConf
     | ClickEndTurn
     | ClickNothing
 
@@ -53,7 +53,7 @@ type ui_element =
     | HandUI of {box : hitbox}
     | DeckUI of {box : hitbox}
     | GameButtonUI of {box : hitbox}
-    | BagConfButtonUI of {box : hitbox}
+    | SelConfButtonUI of {box : hitbox}
     | EndTurnUI of {box : hitbox}
 
 type draw_cmd = 
@@ -65,7 +65,7 @@ type draw_cmd =
     | DrawManaBar of {x : int; y : int; w : int; h : int; remain : int; cap : int}
     | DrawDeck of {x : int; y : int; w : int; h : int; hil : bool; size : int}
     | DrawGameButton of {x : int; y : int; w : int; h : int; hil : bool}
-    | DrawBagConfButton of {x : int; y : int; w : int; h : int}
+    | DrawSelConfButton of {x : int; y : int; w : int; h : int}
     | DrawGroupRemaining of {x : int; y : int; rem : int}
     | DrawVictoryScreen of {x : int; y : int}
     | DrawDefeatScreen of {x : int; y : int}

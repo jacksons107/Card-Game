@@ -111,11 +111,10 @@ let get_target_kinds action_type =
             (match m with
                 | PowInc _ -> [TKCard]
                 | Map _ -> [TKHand; TKDeck]
-                | Clone _ -> [TKCard]
-                | BackTemplate _ -> [TKCard])
+                | Clone _ -> [TKCard])
         | Time t ->
             (match t with
-                | Backward _ -> [TKGame])
+                | Backward _ -> [TKCard])
 
 let set_end_state (game : game) = 
     if game.player.hp <= 0 then 
